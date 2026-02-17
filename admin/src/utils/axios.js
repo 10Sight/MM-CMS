@@ -6,7 +6,7 @@ const ENABLE_API_PERF_LOGS = import.meta.env?.VITE_ENABLE_API_PERF_LOGS === "tru
 
 // Create axios instance with optimized configuration
 const api = axios.create({
-    baseURL: import.meta.env.VITE_SERVER_URL || 'http://31.97.229.146:5001',
+    baseURL: import.meta.env.VITE_SERVER_URL,
     withCredentials: true,
     timeout: 30000, // 30 second default timeout
     headers: {
@@ -23,12 +23,12 @@ api.interceptors.request.use(
     (config) => {
         // Add timestamp for performance monitoring
         config.metadata = { startTime: new Date() };
-        
+
         // Check cache for GET requests
         if (config.method === 'get') {
             const cacheKey = `${config.url}?${JSON.stringify(config.params)}`;
             const cachedResponse = cache.get(cacheKey);
-            
+
             if (cachedResponse && (Date.now() - cachedResponse.timestamp) < CACHE_DURATION) {
                 // Return cached response
                 config.adapter = () => {
@@ -43,7 +43,7 @@ api.interceptors.request.use(
                 };
             }
         }
-        
+
         return config;
     },
     (error) => {
@@ -69,12 +69,12 @@ api.interceptors.response.use(
             if (url.includes('/upload') || url.includes('/share')) {
                 threshold = 5000; // 5 seconds for uploads/sharing
             }
-            
+
             if (duration > threshold) {
                 console.warn(`Slow API request: ${url} took ${duration}ms (threshold: ${threshold}ms)`);
             }
         }
-        
+
         // Cache successful GET requests
         if (response.config.method === 'get' && response.status === 200) {
             const cacheKey = `${response.config.url}?${JSON.stringify(response.config.params)}`;
@@ -82,17 +82,17 @@ api.interceptors.response.use(
                 data: response.data,
                 timestamp: Date.now()
             });
-            
+
             // Clean old cache entries
             if (cache.size > 50) {
                 const entries = Array.from(cache.entries());
-                const oldEntries = entries.filter(([, value]) => 
+                const oldEntries = entries.filter(([, value]) =>
                     (Date.now() - value.timestamp) > CACHE_DURATION
                 );
                 oldEntries.forEach(([key]) => cache.delete(key));
             }
         }
-        
+
         return response;
     },
     (error) => {
@@ -102,12 +102,12 @@ api.interceptors.response.use(
                 console.error('Request timeout:', error.config?.url);
             }
         }
-        
+
         // Clear cache on 401 errors (authentication issues)
         if (error.response?.status === 401) {
             cache.clear();
         }
-        
+
         return Promise.reject(error);
     }
 );
