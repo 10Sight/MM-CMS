@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
-const baseUrl = import.meta.env.VITE_SERVER_URL || 'http://31.97.229.146:5001/';
+const baseUrl = import.meta.env.VITE_SERVER_URL || 'http://31.97.229.146:5001';
 
 export const api = createApi({
   reducerPath: 'api',

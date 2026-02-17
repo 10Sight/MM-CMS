@@ -6,7 +6,7 @@ const ENABLE_API_PERF_LOGS = import.meta.env?.VITE_ENABLE_API_PERF_LOGS === "tru
 
 // Create axios instance with optimized configuration
 const api = axios.create({
-    baseURL: import.meta.env.VITE_SERVER_URL || 'http://31.97.229.146:5001/',
+    baseURL: import.meta.env.VITE_SERVER_URL || 'http://31.97.229.146:5001',
     withCredentials: true,
     timeout: 30000, // 30 second default timeout
     headers: {
