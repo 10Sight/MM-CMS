@@ -891,3 +891,11 @@
 [30 Jan, 2026 - 15:55:56:5556] [31merror[39m: [31mTarget audit reminder job failed: Operation `employees.find()` buffering timed out after 10000ms[39m
 [30 Jan, 2026 - 15:56:06:566] [31merror[39m: [31mTarget audit reminder job failed: Operation `employees.find()` buffering timed out after 10000ms[39m
 [30 Jan, 2026 - 15:56:16:5616] [31merror[39m: [31mTarget audit reminder job failed: Operation `employees.find()` buffering timed out after 10000ms[39m
+[15 Feb, 2026 - 15:00:44:044] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[16 Feb, 2026 - 13:03:48:348] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[16 Feb, 2026 - 13:03:58:358] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[16 Feb, 2026 - 13:04:08:48] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[16 Feb, 2026 - 13:04:18:418] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[16 Feb, 2026 - 13:04:28:428] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[16 Feb, 2026 - 13:04:38:438] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[16 Feb, 2026 - 13:04:48:448] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m

@@ -52,7 +52,7 @@ const allowedOrigins = [
   "https://admin.audiotmanagementsystem.org",
   "https://audit-management-system.onrender.com",
   "http://localhost:3000",
-  "http://localhost:5000",
+  "http://31.97.229.146:5001/",
   "http://localhost:5173",
   "http://localhost:5174",
 ];
