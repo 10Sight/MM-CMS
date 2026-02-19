@@ -3,14 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
+import {
   useGetUserStatsQuery,
   useGetAuditsQuery,
   useGetAllUsersQuery,
   useGetUnitsQuery,
+  useGetDepartmentsQuery,
+  useGetLinesQuery,
+  useGetMachinesQuery,
 } from "@/store/api";
 import { useNavigate } from "react-router-dom";
-import { 
+import {
   Plus,
   Users,
   ShieldCheck,
@@ -70,8 +73,53 @@ export default function SuperAdminDashboard() {
   const totalUnits = units.length;
 
   const [selectedUnit, setSelectedUnit] = useState("all");
+  const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [selectedLine, setSelectedLine] = useState("all");
+  const [selectedMachine, setSelectedMachine] = useState("all");
   const [timeframe, setTimeframe] = useState("daily"); // daily | weekly | monthly | yearly
   const [answerType, setAnswerType] = useState("all"); // all | pass | fail | na
+
+  // Reset child filters when parent changes
+  useEffect(() => {
+    setSelectedDepartment("all");
+    setSelectedLine("all");
+    setSelectedMachine("all");
+  }, [selectedUnit]);
+
+  useEffect(() => {
+    setSelectedLine("all");
+    setSelectedMachine("all");
+  }, [selectedDepartment]);
+
+  useEffect(() => {
+    setSelectedMachine("all");
+  }, [selectedLine]);
+
+  // Fetch filter data
+  const { data: deptsRes } = useGetDepartmentsQuery(
+    { unit: selectedUnit !== "all" ? selectedUnit : undefined },
+    { skip: selectedUnit === "all" }
+  );
+
+  const { data: linesRes } = useGetLinesQuery(
+    {
+      unit: selectedUnit !== "all" ? selectedUnit : undefined,
+      department: selectedDepartment !== "all" ? selectedDepartment : undefined
+    },
+    { skip: selectedUnit === "all" }
+  );
+
+  const { data: machinesRes } = useGetMachinesQuery(
+    {
+      unit: selectedUnit !== "all" ? selectedUnit : undefined,
+      line: selectedLine !== "all" ? selectedLine : undefined
+    },
+    { skip: selectedUnit === "all" }
+  );
+
+  const departments = deptsRes?.data?.departments || deptsRes?.data || [];
+  const lines = linesRes?.data || [];
+  const machines = machinesRes?.data || [];
 
   // Fetch audits for analytics (superadmin can view all units)
   const { data: auditsRes } = useGetAuditsQuery(
@@ -79,6 +127,9 @@ export default function SuperAdminDashboard() {
       page: 1,
       limit: 1000,
       unit: selectedUnit !== "all" ? selectedUnit : undefined,
+      department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+      line: selectedLine !== "all" ? selectedLine : undefined,
+      machine: selectedMachine !== "all" ? selectedMachine : undefined,
     },
     { pollingInterval: 30000 }
   );
@@ -182,27 +233,65 @@ export default function SuperAdminDashboard() {
       .map((period) => ({ date: period, total: countsByPeriod[period] }));
   }, [audits, timeframe]);
 
-  const pieData = useMemo(() => {
-    if (!Array.isArray(audits)) return [];
+  const answerStats = useMemo(() => {
+    if (!Array.isArray(audits)) return { pass: 0, fail: 0, na: 0, total: 0 };
 
-    let passCount = 0;
-    let failCount = 0;
+    let pass = 0;
+    let fail = 0;
+    let na = 0;
 
     audits.forEach((audit) => {
-      const overallStatus = getAuditOverallStatus(audit);
-      if (!overallStatus) return;
+      if (!audit.answers || !Array.isArray(audit.answers)) return;
 
-      if (answerType !== "all" && overallStatus.toLowerCase() !== answerType) return;
-
-      if (overallStatus === "Pass") passCount++;
-      else if (overallStatus === "Fail") failCount++;
+      audit.answers.forEach((ans) => {
+        const normalized = normalizeAnswer(ans.answer);
+        if (normalized === "Pass") pass++;
+        else if (normalized === "Fail") fail++;
+        else if (normalized === "NA") na++;
+      });
     });
 
-    return [
-      { name: "Pass", value: passCount },
-      { name: "Fail", value: failCount },
-    ];
-  }, [audits, answerType]);
+    const total = pass + fail + na; // Total answers
+    return { pass, fail, na, total };
+  }, [audits]);
+
+  // Machine Performance Data (Pass vs Fail by Line/Machine/Department)
+  const machinePerformanceData = useMemo(() => {
+    if (!Array.isArray(audits)) return [];
+
+    const stats = {}; // Key: "Dept - Line - Machine", Value: { Pass: 0, Fail: 0 }
+
+    audits.forEach((audit) => {
+      // Ensure we have machine info; if not, skip or group under "Unknown"
+      const deptName = audit.department?.name || "N/A";
+      const lineName = audit.line?.name || "N/A";
+      const machineName = audit.machine?.name || "N/A";
+
+      // Label format: "Line - Machine" (Department implied if filtered, or add it if not)
+      let label = machineName;
+      if (selectedLine === "all") label = `${lineName} - ${machineName}`;
+      if (selectedDepartment === "all") label = `${deptName} - ${lineName} - ${machineName}`;
+
+      // Truncate label if too long
+      if (label.length > 30) label = label.substring(0, 30) + "...";
+
+      if (!stats[label]) stats[label] = { name: label, Pass: 0, Fail: 0 };
+
+      // Aggregate answers
+      if (Array.isArray(audit.answers)) {
+        audit.answers.forEach((ans) => {
+          const normalized = normalizeAnswer(ans.answer);
+          if (normalized === "Pass") stats[label].Pass++;
+          else if (normalized === "Fail") stats[label].Fail++;
+        });
+      }
+    });
+
+    // Convert to array and sort by Fail count descending
+    return Object.values(stats)
+      .sort((a, b) => b.Fail - a.Fail)
+      .slice(0, 10); // Top 10 worst
+  }, [audits, selectedDepartment, selectedLine]);
 
   const todayLabel = useMemo(() => format(new Date(), "MMM dd, yyyy"), []);
 
@@ -213,9 +302,9 @@ export default function SuperAdminDashboard() {
       selectedUnit === "all"
         ? employeesOnly
         : employeesOnly.filter((u) => {
-            const unitId = u.unit?._id || u.unit;
-            return unitId && String(unitId) === String(selectedUnit);
-          });
+          const unitId = u.unit?._id || u.unit;
+          return unitId && String(unitId) === String(selectedUnit);
+        });
 
     return scoped.reduce((sum, emp) => {
       const total = emp.targetAudit?.total;
@@ -325,7 +414,7 @@ export default function SuperAdminDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
             {/* Unit filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">Unit</label>
@@ -338,6 +427,72 @@ export default function SuperAdminDashboard() {
                   {units.map((u) => (
                     <SelectItem key={u._id} value={u._id}>
                       {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Department filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Department</label>
+              <Select
+                value={selectedDepartment}
+                onValueChange={setSelectedDepartment}
+                disabled={selectedUnit === "all"}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d._id} value={d._id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Line filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Line</label>
+              <Select
+                value={selectedLine}
+                onValueChange={setSelectedLine}
+                disabled={selectedDepartment === "all"}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Lines" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Lines</SelectItem>
+                  {lines.map((l) => (
+                    <SelectItem key={l._id} value={l._id}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Machine filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Machine</label>
+              <Select
+                value={selectedMachine}
+                onValueChange={setSelectedMachine}
+                disabled={selectedLine === "all"}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Machines" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Machines</SelectItem>
+                  {machines.map((m) => (
+                    <SelectItem key={m._id} value={m._id}>
+                      {m.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -392,34 +547,28 @@ export default function SuperAdminDashboard() {
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={lineData}>
+                <BarChart data={lineData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip formatter={(value, name) => [`${value} answers`, name]} />
                   <Legend />
-                  <Line
-                    type="monotone"
+                  <Bar
                     dataKey="Pass"
-                    stroke={CHART_COLORS.success}
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: CHART_COLORS.success }}
+                    fill={CHART_COLORS.success}
+                    radius={[4, 4, 0, 0]}
                   />
-                  <Line
-                    type="monotone"
+                  <Bar
                     dataKey="Fail"
-                    stroke={CHART_COLORS.error}
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: CHART_COLORS.error }}
+                    fill={CHART_COLORS.error}
+                    radius={[4, 4, 0, 0]}
                   />
-                  <Line
-                    type="monotone"
+                  <Bar
                     dataKey="NA"
-                    stroke={CHART_COLORS.neutral}
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: CHART_COLORS.neutral }}
+                    fill={CHART_COLORS.neutral}
+                    radius={[4, 4, 0, 0]}
                   />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -434,26 +583,78 @@ export default function SuperAdminDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={100}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-72 grid grid-cols-2 gap-4">
+              <div className="relative">
+                <h4 className="text-center font-medium mb-2">Pass Rate</h4>
+                <ResponsiveContainer width="100%" height="90%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Pass", value: answerStats.pass },
+                        { name: "Other", value: answerStats.total - answerStats.pass },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      startAngle={90}
+                      endAngle={-270}
+                      dataKey="value"
+                    >
+                      <Cell fill={CHART_COLORS.success} />
+                      <Cell fill="#f3f4f6" />
+                    </Pie>
+                    <text
+                      x="50%"
+                      y="50%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-foreground text-2xl font-bold"
+                    >
+                      {answerStats.total > 0
+                        ? `${Math.round((answerStats.pass / answerStats.total) * 100)}%`
+                        : "0%"}
+                    </text>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="relative">
+                <h4 className="text-center font-medium mb-2">Fail Rate</h4>
+                <ResponsiveContainer width="100%" height="90%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Fail", value: answerStats.fail },
+                        { name: "Other", value: answerStats.total - answerStats.fail },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      startAngle={90}
+                      endAngle={-270}
+                      dataKey="value"
+                    >
+                      <Cell fill={CHART_COLORS.error} />
+                      <Cell fill="#f3f4f6" />
+                    </Pie>
+                    <text
+                      x="50%"
+                      y="50%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-foreground text-2xl font-bold"
+                    >
+                      {answerStats.total > 0
+                        ? `${Math.round((answerStats.fail / answerStats.total) * 100)}%`
+                        : "0%"}
+                    </text>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -517,6 +718,59 @@ export default function SuperAdminDashboard() {
         </CardContent>
       </Card>
 
+      {/* Top 10 Defect Analysis by Machine */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Top 10 Machine Performance (Defects vs Pass)
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Showing top machines with highest defect counts across selected filters
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                layout="vertical"
+                data={machinePerformanceData}
+                margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tick={{ fontSize: 12 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={150}
+                  tick={{ fontSize: 11 }}
+                  interval={0}
+                />
+                <Tooltip
+                  formatter={(value, name) => [`${value} answers`, name]}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar
+                  dataKey="Fail"
+                  fill={CHART_COLORS.error}
+                  stackId="a"
+                  name="Fail Answers"
+                  radius={[0, 4, 4, 0]}
+                />
+                <Bar
+                  dataKey="Pass"
+                  fill={CHART_COLORS.success}
+                  stackId="a"
+                  name="Pass Answers"
+                  radius={[0, 0, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Recent users */}
       <Card>
         <CardHeader>
@@ -543,8 +797,8 @@ export default function SuperAdminDashboard() {
                           u.role === "admin"
                             ? "destructive"
                             : u.role === "superadmin"
-                            ? "outline"
-                            : "default"
+                              ? "outline"
+                              : "default"
                         }
                       >
                         {u.role}
