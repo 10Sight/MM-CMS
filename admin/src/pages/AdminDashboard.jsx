@@ -22,7 +22,8 @@ import {
   Building2,
   Cog,
   Calendar,
-  Filter
+  Filter,
+  PieChart as PieChartIcon,
 } from "lucide-react";
 import { useGetAuditsQuery, useGetLinesQuery, useGetMachinesQuery, useGetUnitsQuery, useGetEmployeesQuery, useGetDepartmentsQuery } from "@/store/api";
 import { useAuth } from "../context/AuthContext";
@@ -377,6 +378,65 @@ export default function AdminDashboard() {
     [aggregatedCounts.targetAudits, aggregatedCounts.actualAudits]
   );
 
+  const answerStats = useMemo(() => {
+    if (!Array.isArray(audits)) return { pass: 0, fail: 0, na: 0, total: 0 };
+
+    let pass = 0;
+    let fail = 0;
+    let na = 0;
+
+    audits.forEach((audit) => {
+      if (!audit.answers || !Array.isArray(audit.answers)) return;
+
+      audit.answers.forEach((ans) => {
+        const normalized = normalizeAnswer(ans.answer);
+        if (normalized === "Pass") pass++;
+        else if (normalized === "Fail") fail++;
+        else if (normalized === "NA") na++;
+      });
+    });
+
+    const total = pass + fail + na; // Total answers
+    return { pass, fail, na, total };
+  }, [audits]);
+
+  // Machine Performance Data (Pass vs Fail by Line/Machine/Department)
+  const machinePerformanceData = useMemo(() => {
+    if (!Array.isArray(audits)) return [];
+
+    const stats = {}; // Key: "Dept - Line - Machine", Value: { Pass: 0, Fail: 0 }
+
+    audits.forEach((audit) => {
+      const deptName = audit.department?.name || "N/A";
+      const lineName = audit.line?.name || "N/A";
+      const machineName = audit.machine?.name || "N/A";
+
+      // Label format: "Line - Machine" (Department implied if filtered, or add it if not)
+      let label = machineName;
+      if (selectedLine === "all") label = `${lineName} - ${machineName}`;
+      if (selectedDepartment === "all") label = `${deptName} - ${lineName} - ${machineName}`;
+
+      // Truncate label if too long
+      if (label.length > 30) label = label.substring(0, 30) + "...";
+
+      if (!stats[label]) stats[label] = { name: label, Pass: 0, Fail: 0 };
+
+      // Aggregate answers
+      if (Array.isArray(audit.answers)) {
+        audit.answers.forEach((ans) => {
+          const normalized = normalizeAnswer(ans.answer);
+          if (normalized === "Pass") stats[label].Pass++;
+          else if (normalized === "Fail") stats[label].Fail++;
+        });
+      }
+    });
+
+    // Convert to array and sort by Fail count descending
+    return Object.values(stats)
+      .sort((a, b) => b.Fail - a.Fail)
+      .slice(0, 10); // Top 10 worst
+  }, [audits, selectedDepartment, selectedLine]);
+
   const unitScopeLabel = useMemo(() => {
     if (role === 'superadmin') {
       if (!effectiveUnitId) return 'All Units';
@@ -645,7 +705,7 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={lineData}>
+                <BarChart data={lineData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="hsl(var(--muted))"
@@ -670,23 +730,22 @@ export default function AdminDashboard() {
                     }}
                   />
                   <Legend />
-                  <Line
-                    type="monotone"
+                  <Bar
                     dataKey="Pass"
-                    stroke={CHART_COLORS.success}
-                    strokeWidth={3}
-                    dot={{ r: 5, fill: CHART_COLORS.success }}
-                    activeDot={{ r: 7, fill: CHART_COLORS.success }}
+                    fill={CHART_COLORS.success}
+                    radius={[4, 4, 0, 0]}
                   />
-                  <Line
-                    type="monotone"
+                  <Bar
                     dataKey="Fail"
-                    stroke={CHART_COLORS.error}
-                    strokeWidth={3}
-                    dot={{ r: 5, fill: CHART_COLORS.error }}
-                    activeDot={{ r: 7, fill: CHART_COLORS.error }}
+                    fill={CHART_COLORS.error}
+                    radius={[4, 4, 0, 0]}
                   />
-                </LineChart>
+                  <Bar
+                    dataKey="NA"
+                    fill={CHART_COLORS.neutral}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -696,43 +755,83 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Overall Distribution
+              <PieChartIcon className="h-5 w-5" />
+              Overall Answer Distribution
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name} ${(percent * 100).toFixed(0)}%`
-                    }
-                    outerRadius={100}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={PIE_COLORS[index]}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px hsl(var(--foreground) / 0.15)'
-                    }}
-                  />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-72 grid grid-cols-2 gap-4">
+              <div className="relative">
+                <h4 className="text-center font-medium mb-2">Pass Rate</h4>
+                <ResponsiveContainer width="100%" height="90%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Pass", value: answerStats.pass },
+                        { name: "Other", value: answerStats.total - answerStats.pass },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      startAngle={90}
+                      endAngle={-270}
+                      dataKey="value"
+                    >
+                      <Cell fill={CHART_COLORS.success} />
+                      <Cell fill="#f3f4f6" />
+                    </Pie>
+                    <text
+                      x="50%"
+                      y="50%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-foreground text-2xl font-bold"
+                    >
+                      {answerStats.total > 0
+                        ? `${Math.round((answerStats.pass / answerStats.total) * 100)}%`
+                        : "0%"}
+                    </text>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="relative">
+                <h4 className="text-center font-medium mb-2">Fail Rate</h4>
+                <ResponsiveContainer width="100%" height="90%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Fail", value: answerStats.fail },
+                        { name: "Other", value: answerStats.total - answerStats.fail },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      startAngle={90}
+                      endAngle={-270}
+                      dataKey="value"
+                    >
+                      <Cell fill={CHART_COLORS.error} />
+                      <Cell fill="#f3f4f6" />
+                    </Pie>
+                    <text
+                      x="50%"
+                      y="50%"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="fill-foreground text-2xl font-bold"
+                    >
+                      {answerStats.total > 0
+                        ? `${Math.round((answerStats.fail / answerStats.total) * 100)}%`
+                        : "0%"}
+                    </text>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -949,6 +1048,59 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Top 10 Defect Analysis by Machine */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Top 10 Machine Performance (Defects vs Pass)
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Showing top machines with highest defect counts across selected filters
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                layout="vertical"
+                data={machinePerformanceData}
+                margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tick={{ fontSize: 12 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={150}
+                  tick={{ fontSize: 11 }}
+                  interval={0}
+                />
+                <Tooltip
+                  formatter={(value, name) => [`${value} answers`, name]}
+                  contentStyle={{ fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar
+                  dataKey="Fail"
+                  fill={CHART_COLORS.error}
+                  stackId="a"
+                  name="Fail Answers"
+                  radius={[0, 4, 4, 0]}
+                />
+                <Bar
+                  dataKey="Pass"
+                  fill={CHART_COLORS.success}
+                  stackId="a"
+                  name="Pass Answers"
+                  radius={[0, 0, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

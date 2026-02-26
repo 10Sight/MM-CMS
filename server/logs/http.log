@@ -6311,3 +6311,41 @@
 [17 Feb, 2026 - 21:30:32:3032] [34minfo[39m: [34mDepartments fetched by Jatin (JA001)[39m
 [17 Feb, 2026 - 21:30:37:3037] [34minfo[39m: [34mEmployees fetched by Jatin (JA001)[39m
 [17 Feb, 2026 - 21:30:37:3037] [34minfo[39m: [34mDepartments fetched by Jatin (JA001)[39m
+[19 Feb, 2026 - 13:49:00:490] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[19 Feb, 2026 - 13:49:04:494] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-00.knfen.mongodb.net:27017/test[39m
+[19 Feb, 2026 - 13:50:50:5050] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[19 Feb, 2026 - 13:52:58:5258] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[19 Feb, 2026 - 13:53:04:534] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[19 Feb, 2026 - 17:12:49:1249] [31merror[39m: [31mTarget audit reminder job failed: connection <monitor> to 159.41.251.56:27017 timed out[39m
+[19 Feb, 2026 - 17:12:52:1252] [33mwarn[39m: [33mMongoDB disconnected[39m
+[19 Feb, 2026 - 17:46:49:4649] [33mwarn[39m: [33mMongoDB disconnected[39m
+[19 Feb, 2026 - 17:46:54:4654] [31merror[39m: [31mTarget audit reminder job failed: connection <monitor> to 159.41.251.56:27017 timed out[39m
+[19 Feb, 2026 - 17:46:58:4658] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5013ms (connectTimeoutMS: 5000)[39m
+[19 Feb, 2026 - 17:47:08:478] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5002ms (connectTimeoutMS: 5000)[39m
+[19 Feb, 2026 - 17:47:18:4718] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5008ms (connectTimeoutMS: 5000)[39m
+[19 Feb, 2026 - 17:47:28:4728] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5006ms (connectTimeoutMS: 5000)[39m
+[19 Feb, 2026 - 17:47:38:4738] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:47:48:4748] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:47:58:4758] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:48:08:488] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:48:18:4818] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:48:28:4828] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:48:38:4838] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:48:48:4848] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:48:58:4858] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:49:08:498] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5008ms (connectTimeoutMS: 5000)[39m
+[19 Feb, 2026 - 17:49:18:4918] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:49:28:4928] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 17:49:38:4938] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 18:45:55:4555] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 18:46:00:460] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[19 Feb, 2026 - 19:04:13:413] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[19 Feb, 2026 - 19:04:15:415] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-02.knfen.mongodb.net:27017/test[39m
+[25 Feb, 2026 - 19:16:17:1617] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[25 Feb, 2026 - 19:16:17:1617] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[25 Feb, 2026 - 19:16:43:1643] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[25 Feb, 2026 - 19:16:56:1656] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[25 Feb, 2026 - 19:16:56:1656] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[25 Feb, 2026 - 19:21:02:212] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[25 Feb, 2026 - 19:22:53:2253] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[25 Feb, 2026 - 19:22:53:2253] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
