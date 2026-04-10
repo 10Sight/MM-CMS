@@ -7,7 +7,14 @@ export const store = configureStore({
     [api.reducerPath]: api.reducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(api.middleware),
+    getDefaultMiddleware({
+      serializableCheck: {
+        warnAfter: 128,
+      },
+      immutableCheck: {
+        warnAfter: 128,
+      },
+    }).concat(api.middleware),
 });
 
 setupListeners(store.dispatch);

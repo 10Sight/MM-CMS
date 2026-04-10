@@ -98,6 +98,7 @@ export default function SuperAdminUsersPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Designation</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead className="hidden md:table-cell">Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -122,11 +123,20 @@ export default function SuperAdminUsersPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{typeof u.department === 'object' ? (u.department?.name || 'N/A') : (u.department || 'N/A')}</TableCell>
+                    <TableCell>
+                      {Array.isArray(u.department)
+                        ? u.department.map((d) => (typeof d === "object" ? d.name : d)).join(", ") || "N/A"
+                        : typeof u.department === "object"
+                          ? u.department?.name || "N/A"
+                          : u.department || "N/A"}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={u.role === 'admin' ? 'destructive' : u.role === 'superadmin' ? 'outline' : 'default'}>
                         {u.role}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="capitalize text-xs font-semibold">
+                      {u.designation && u.designation !== "none" ? u.designation : "—"}
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
@@ -154,7 +164,7 @@ export default function SuperAdminUsersPage() {
                 ))}
                 {!users.length && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No users found</TableCell>
+                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No users found</TableCell>
                   </TableRow>
                 )}
               </TableBody>

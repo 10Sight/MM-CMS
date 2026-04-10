@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Calendar, Users, Building2 } from "lucide-react";
+import { ArrowLeft, Calendar, Users, Building2, Activity } from "lucide-react";
 
 function getAnswersSummary(audit) {
   if (!Array.isArray(audit.answers)) {
@@ -219,9 +219,10 @@ export default function SuperAdminAdminDetailPage() {
             )}
             {employee.department && (
               <Badge variant="outline" className="capitalize">
-                {typeof employee.department === "object"
-                  ? employee.department?.name || "N/A"
-                  : employee.department || "N/A"}
+                {Array.isArray(employee.department)
+                  ? employee.department.map(d => d.name || "Dept").join(", ")
+                  : (employee.department?.name || employee.department || "N/A")
+                }
               </Badge>
             )}
           </div>
@@ -241,6 +242,10 @@ export default function SuperAdminAdminDetailPage() {
               <div className="font-medium">
                 {employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : "N/A"}
               </div>
+            </div>
+            <div className="space-y-1 text-sm">
+              <div className="text-xs text-muted-foreground">Designation</div>
+              <div className="font-medium capitalize">{employee.designation || "—"}</div>
             </div>
           </div>
         </CardContent>

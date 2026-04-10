@@ -237,6 +237,31 @@ export const getAudits = asyncHandler(async (req, res) => {
   if (req.query.shift) query.shift = req.query.shift;
   if (req.query.department) query.department = req.query.department;
 
+  // Designation filter: since designation is stored in the Employee model, 
+  // we first find relevant employee IDs.
+  if (req.query.designation) {
+    const Employee = mongoose.model("Employee");
+    const employees = await Employee.find({ designation: req.query.designation }).select("_id").lean();
+    const employeeIds = employees.map(e => e._id);
+    
+    // Add to query
+    query.auditor = { ...query.auditor, $in: employeeIds };
+  }
+
+  // Category filter: similar to designation, filter by employee category
+  if (req.query.category) {
+    const Employee = mongoose.model("Employee");
+    const employees = await Employee.find({ category: req.query.category }).select("_id").lean();
+    const employeeIds = employees.map(e => e._id);
+    
+    // Add to query (using $in to combine with existing auditor filters if any)
+    if (query.auditor && query.auditor.$in) {
+      query.auditor.$in = query.auditor.$in.filter(id => employeeIds.some(eid => String(eid) === String(id)));
+    } else {
+      query.auditor = { ...query.auditor, $in: employeeIds };
+    }
+  }
+
   // Result filter
   // Supported values:
   // - allYes, allNo     (legacy)
@@ -294,8 +319,8 @@ export const getAudits = asyncHandler(async (req, res) => {
       .populate("process", "name")
       .populate("unit", "name")
       .populate("department", "name")
-      .populate("auditor", "fullName emailId")
-      .populate("createdBy", "fullName employeeId")
+      .populate("auditor", "fullName emailId role designation")
+      .populate("createdBy", "fullName employeeId role designation")
       .populate({ path: "answers.question", select: "questionText templateTitle questionType", options: { lean: true } })
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -311,8 +336,8 @@ export const getAudits = asyncHandler(async (req, res) => {
         .populate("process", "name")
         .populate("unit", "name")
         .populate("department", "name")
-        .populate("auditor", "fullName emailId")
-        .populate("createdBy", "fullName employeeId")
+        .populate("auditor", "fullName emailId role designation")
+        .populate("createdBy", "fullName employeeId role designation")
         .sort({ createdAt: -1 })
         .limit(limit)
         .skip(skip)
@@ -437,8 +462,8 @@ export const exportAudits = asyncHandler(async (req, res) => {
       .populate("process", "name")
       .populate("unit", "name")
       .populate("department", "name")
-      .populate("auditor", "fullName emailId")
-      .populate("createdBy", "fullName employeeId")
+      .populate("auditor", "fullName emailId role designation")
+      .populate("createdBy", "fullName employeeId role designation")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
@@ -451,8 +476,8 @@ export const exportAudits = asyncHandler(async (req, res) => {
         .populate("process", "name")
         .populate("unit", "name")
         .populate("department", "name")
-        .populate("auditor", "fullName emailId")
-        .populate("createdBy", "fullName employeeId")
+        .populate("auditor", "fullName emailId role designation")
+        .populate("createdBy", "fullName employeeId role designation")
         .sort({ createdAt: -1 })
         .limit(limit)
         .lean();
@@ -1076,4 +1101,29 @@ export const deleteAudit = asyncHandler(async (req, res) => {
   }
 
   return res.json(new ApiResponse(200, null, "Audit deleted successfully"));
+});
+
+export const updateAuditActionPlan = asyncHandler(async (req, res) => {
+  const { id, answerId } = req.params;
+  const { actionPlan, actionOwner, actionDeadline, actionStatus } = req.body;
+
+  const audit = await Audit.findById(id);
+  if (!audit) throw new ApiError(404, "Audit not found");
+
+  // Find the specific answer in the answers array
+  const answerIndex = audit.answers.findIndex((ans) => ans._id.toString() === answerId);
+  if (answerIndex === -1) throw new ApiError(404, "Answer not found in this audit");
+
+  // Update the fields
+  if (actionPlan !== undefined) audit.answers[answerIndex].actionPlan = actionPlan;
+  if (actionOwner !== undefined) audit.answers[answerIndex].actionOwner = actionOwner;
+  if (actionDeadline !== undefined) audit.answers[answerIndex].actionDeadline = actionDeadline;
+  if (actionStatus !== undefined) audit.answers[answerIndex].actionStatus = actionStatus;
+
+  await audit.save();
+
+  // Invalidate cache
+  await invalidateCache('/api/audits');
+
+  return res.json(new ApiResponse(200, audit, "Action plan updated successfully"));
 });

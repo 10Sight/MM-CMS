@@ -920,3 +920,4 @@
 [19 Feb, 2026 - 17:49:38:4938] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
 [19 Feb, 2026 - 18:45:55:4555] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
 [19 Feb, 2026 - 18:46:00:460] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[10 Apr, 2026 - 09:58:30:5830] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-01.knfen.mongodb.net[39m

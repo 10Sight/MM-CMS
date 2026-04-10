@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { ArrowLeft, UserPlus, Eye, EyeOff, Building2, Mail, Phone, User, Key, Shield } from "lucide-react";
+import { ArrowLeft, UserPlus, Eye, EyeOff, Building2, Mail, Phone, User, Key, Shield, Zap } from "lucide-react";
 import { useRegisterEmployeeMutation, useGetDepartmentsQuery, useGetUnitsQuery } from "@/store/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { Switch } from "@/components/ui/switch";
 
 export default function AddEmployeePage() {
   const navigate = useNavigate();
@@ -24,6 +25,14 @@ export default function AddEmployeePage() {
     [user]
   );
 
+  const designations = [
+    { label: "None", value: "none" },
+    { label: "Plant Head", value: "plant head" },
+    { label: "HOD", value: "hod" },
+    { label: "Shift Incharge", value: "shift incharge" },
+    { label: "Team Leader", value: "team leader" },
+  ];
+
   // NOTE: We rely mainly on backend validation; do light checks in onSubmit.
   const form = useForm({
     defaultValues: {
@@ -34,12 +43,16 @@ export default function AddEmployeePage() {
       phoneNumber: "",
       password: "",
       role: user?.role === "admin" ? "employee" : "",
+      designation: "none",
       unit: "",
+      isAdminPower: false,
+      category: "non-critical",
     },
   });
 
 
   const selectedRole = form.watch("role");
+  const selectedDesignation = form.watch("designation");
   const selectedUnit = form.watch("unit");
 
   const departmentQueryParams = useMemo(() => {
@@ -85,25 +98,21 @@ export default function AddEmployeePage() {
       return;
     }
 
-    const effectiveRole = user?.role === "admin" ? "employee" : data.role;
+    const effectiveRole = data.role || (user?.role === "admin" ? "employee" : "");
+    const effectiveDesignation = data.designation || "none";
 
-    if (user?.role === "superadmin" && !effectiveRole) {
+    if (!effectiveRole) {
       toast.error("Please select a role");
       return;
     }
 
-    if (effectiveRole === "admin" && !data.unit) {
-      toast.error("Please select a unit for the admin");
+    const deptRequiredDesignations = ["hod", "shift incharge", "team leader"];
+    if ((effectiveRole === "employee" || deptRequiredDesignations.includes(effectiveDesignation)) && !data.department) {
+      toast.error("Please select a department for the user");
       return;
     }
 
-    if (effectiveRole === "employee" && !data.department) {
-      toast.error("Please select a department for the auditor");
-      return;
-    }
-
-    // For admin users, ensure we don't send any stray department value
-    if (effectiveRole === "admin") {
+    if ((effectiveRole === "admin" || effectiveDesignation === "plant head") && !data.unit && user?.role === "superadmin") {
       data.department = undefined;
     }
 
@@ -253,8 +262,8 @@ export default function AddEmployeePage() {
                   )}
                 />
 
-                {/* Department - required for auditors (employees), not for admins */}
-                {(user?.role === "admin" || selectedRole === "employee") && (
+                {/* Department - required for auditors (employees) and dept management designations */}
+                {(user?.role === "admin" || selectedRole === "employee" || ["hod", "shift incharge", "team leader"].includes(selectedDesignation)) && (
                   <FormField
                     control={form.control}
                     name="department"
@@ -351,11 +360,93 @@ export default function AddEmployeePage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="employee">Auditor</SelectItem>
+                            <SelectItem value="employee">Auditor (Employee)</SelectItem>
                             <SelectItem value="admin">Administrator</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Category Selection */}
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-purple-500" />
+                        Category
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="critical">Critical</SelectItem>
+                          <SelectItem value="non-critical">Non-Critical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Designation - only for superadmin */}
+                {user?.role === "superadmin" && (
+                  <FormField
+                    control={form.control}
+                    name="designation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-blue-500" />
+                          Designation (Optional)
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select designation" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {designations.map((d) => (
+                              <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Admin Power Toggle - only for management designations or when selected by superadmin */}
+                {user?.role === "superadmin" && selectedDesignation !== "none" && (
+                  <FormField
+                    control={form.control}
+                    name="isAdminPower"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 h-full">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base flex items-center gap-2">
+                            <Zap className="h-4 w-4 text-yellow-500" />
+                            Give Admin Power
+                          </FormLabel>
+                          <FormDescription>
+                            Enable administration capabilities for this user
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />

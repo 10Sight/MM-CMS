@@ -186,6 +186,9 @@ export default function EmployeesPage() {
 
   const getDepartmentName = (dept) => {
     if (!dept) return 'N/A';
+    if (Array.isArray(dept)) {
+      return dept.map(d => (typeof d === 'object' ? d.name : (departmentMap.get(d) || d))).join(", ") || 'N/A';
+    }
     if (typeof dept === 'object' && dept?.name) return dept.name;
     if (typeof dept === 'string') return departmentMap.get(dept) || 'N/A';
     return 'N/A';
@@ -380,6 +383,7 @@ export default function EmployeesPage() {
                 <TableRow>
                   <TableHead>Auditor</TableHead>
                   <TableHead className="hidden md:table-cell">Department</TableHead>
+                  <TableHead className="hidden md:table-cell">Designation</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Target Audits</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Actual (in target)</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Progress</TableHead>
@@ -416,6 +420,9 @@ export default function EmployeesPage() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <Badge variant="outline">{getDepartmentName(emp.department)}</Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell capitalize text-xs">
+                          {emp.designation && emp.designation !== 'none' ? emp.designation : '—'}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-center text-xs">
                           {hasTarget ? (
@@ -480,7 +487,7 @@ export default function EmployeesPage() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       {searchTerm ? (
                         <div className="flex flex-col items-center justify-center">
                           <Search className="h-8 w-8 text-muted-foreground mb-2" />

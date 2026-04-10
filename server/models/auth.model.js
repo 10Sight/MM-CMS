@@ -68,6 +68,23 @@ const EmployeeSchema = new Schema(
       default: "employee",
     },
 
+    designation: {
+      type: String,
+      enum: ["plant head", "hod", "shift incharge", "team leader", "none"],
+      default: "none",
+    },
+
+    isAdminPower: {
+      type: Boolean,
+      default: false,
+    },
+    
+    category: {
+      type: String,
+      enum: ["critical", "non-critical"],
+      default: "non-critical",
+    },
+
     // Optional audit target configuration for this employee (auditor)
     targetAudit: {
       total: {
@@ -123,7 +140,9 @@ EmployeeSchema.methods.generateJWT = function () {
     {
       id: this._id,
       role: this.role,
+      designation: this.designation || "none",
       employeeId: this.employeeId,
+      isAdminPower: this.isAdminPower || false,
     },
     EVN.JWT_ACCESS_SECRET,
     { expiresIn: EVN.JWT_EXPIRY || "7d" }

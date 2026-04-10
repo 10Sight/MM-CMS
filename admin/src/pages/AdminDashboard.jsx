@@ -16,21 +16,49 @@ import {
 } from "recharts";
 import { startOfWeek, startOfMonth, startOfYear, format } from "date-fns";
 import {
+  Filter,
+  PieChart as PieChartIcon,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Edit,
+  RotateCcw,
+  AlertTriangle,
   BarChart3,
   TrendingUp,
   Users,
   Building2,
   Cog,
   Calendar,
-  Filter,
-  PieChart as PieChartIcon,
+  Download,
 } from "lucide-react";
-import { useGetAuditsQuery, useGetLinesQuery, useGetMachinesQuery, useGetUnitsQuery, useGetEmployeesQuery, useGetDepartmentsQuery } from "@/store/api";
+import * as XLSX from 'xlsx';
+import { 
+  useGetAuditsQuery, 
+  useGetLinesQuery, 
+  useGetMachinesQuery, 
+  useGetUnitsQuery, 
+  useGetEmployeesQuery, 
+  useGetDepartmentsQuery,
+  useUpdateAuditActionPlanMutation
+} from "@/store/api";
 import { useAuth } from "../context/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function AdminDashboard() {
   const [audits, setAudits] = useState([]);
@@ -44,6 +72,7 @@ export default function AdminDashboard() {
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [selectedLine, setSelectedLine] = useState("all");
   const [selectedMachine, setSelectedMachine] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [timeframe, setTimeframe] = useState("daily");
 
   const [lineData, setLineData] = useState([]);
@@ -52,7 +81,7 @@ export default function AdminDashboard() {
   const [pieData, setPieData] = useState([]);
   const [auditCountData, setAuditCountData] = useState([]);
 
-  const { user: currentUser, activeUnitId } = useAuth();
+  const { user: currentUser, activeUnitId, setActiveUnitId } = useAuth();
   const userUnitId = currentUser?.unit?._id || currentUser?.unit || '';
   const role = currentUser?.role;
 
@@ -125,6 +154,7 @@ export default function AdminDashboard() {
       unit: effectiveUnitId,
       line: selectedLine !== 'all' ? selectedLine : undefined,
       machine: selectedMachine !== 'all' ? selectedMachine : undefined,
+      category: selectedCategory !== "all" ? selectedCategory : undefined,
     },
     { pollingInterval: 30000 }
   );
@@ -222,19 +252,39 @@ export default function AdminDashboard() {
     setLineData(lineChartData);
   }, [audits, timeframe, answerType]);
 
-  // Total audits over time (count of audits per period)
+  // Layer wise audit nos over time
   useEffect(() => {
     if (!Array.isArray(audits)) return;
 
     const countsByPeriod = {};
+    const getLayer = (desig) => {
+      const d = (desig || "").toLowerCase();
+      if (d === "team leader" || d === "shift incharge" || d === "none" || d === "") return "Layer 1";
+      if (d === "hod") return "Layer 2";
+      if (d === "plant head") return "Layer 3";
+      return "Layer 1"; // Default any other recognized designation to Layer 1 for completeness
+    };
+
     audits.forEach((audit) => {
       const key = getTimeframeKey(audit.date || audit.createdAt, timeframe);
-      countsByPeriod[key] = (countsByPeriod[key] || 0) + 1;
+      if (!countsByPeriod[key]) {
+        countsByPeriod[key] = { "Layer 1": 0, "Layer 2": 0, "Layer 3": 0 };
+      }
+      
+      const desig = audit.auditor?.designation || audit.createdBy?.designation;
+      const layer = getLayer(desig);
+      
+      if (layer) {
+        countsByPeriod[key][layer]++;
+      }
     });
 
     const totalAuditsSeries = Object.keys(countsByPeriod)
       .sort((a, b) => new Date(a) - new Date(b))
-      .map((period) => ({ date: period, total: countsByPeriod[period] }));
+      .map((period) => ({ 
+        date: period, 
+        ...countsByPeriod[period]
+      }));
 
     setAuditCountData(totalAuditsSeries);
   }, [audits, timeframe]);
@@ -400,42 +450,181 @@ export default function AdminDashboard() {
     return { pass, fail, na, total };
   }, [audits]);
 
-  // Machine Performance Data (Pass vs Fail by Line/Machine/Department)
-  const machinePerformanceData = useMemo(() => {
+  // --- NEW: Process Wise Failure Trend Data ---
+  const processWiseFailureData = useMemo(() => {
     if (!Array.isArray(audits)) return [];
 
-    const stats = {}; // Key: "Dept - Line - Machine", Value: { Pass: 0, Fail: 0 }
+    const stats = {}; // Key: "Process Name", Value: { Pass: 0, Fail: 0, CriticalFail: 0, NonCriticalFail: 0 }
 
     audits.forEach((audit) => {
-      const deptName = audit.department?.name || "N/A";
-      const lineName = audit.line?.name || "N/A";
-      const machineName = audit.machine?.name || "N/A";
+      // Per user request: "Process" means "Machine" in this context
+      // Fallback: If machine name is missing, use Line or Department as the identifier
+      const processName = audit.machine?.name || audit.line?.name || audit.department?.name || "N/A";
+      const auditorCategory = audit.auditor?.category || "non-critical";
 
-      // Label format: "Line - Machine" (Department implied if filtered, or add it if not)
-      let label = machineName;
-      if (selectedLine === "all") label = `${lineName} - ${machineName}`;
-      if (selectedDepartment === "all") label = `${deptName} - ${lineName} - ${machineName}`;
+      if (!stats[processName]) {
+        stats[processName] = { 
+          name: processName, 
+          Pass: 0, 
+          Fail: 0, 
+          "Critical Failure": 0, 
+          "Non-Critical Failure": 0,
+          department: audit.department?.name || "N/A",
+          line: audit.line?.name || "N/A"
+        };
+      }
 
-      // Truncate label if too long
-      if (label.length > 30) label = label.substring(0, 30) + "...";
-
-      if (!stats[label]) stats[label] = { name: label, Pass: 0, Fail: 0 };
-
-      // Aggregate answers
       if (Array.isArray(audit.answers)) {
         audit.answers.forEach((ans) => {
           const normalized = normalizeAnswer(ans.answer);
-          if (normalized === "Pass") stats[label].Pass++;
-          else if (normalized === "Fail") stats[label].Fail++;
+          if (normalized === "Pass") {
+            stats[processName].Pass++;
+          } else if (normalized === "Fail") {
+            stats[processName].Fail++;
+            if (auditorCategory === "critical") {
+              stats[processName]["Critical Failure"]++;
+            } else {
+              stats[processName]["Non-Critical Failure"]++;
+            }
+          }
         });
       }
     });
 
-    // Convert to array and sort by Fail count descending
     return Object.values(stats)
       .sort((a, b) => b.Fail - a.Fail)
-      .slice(0, 10); // Top 10 worst
-  }, [audits, selectedDepartment, selectedLine]);
+      .slice(0, 10);
+  }, [audits]);
+
+  // --- NEW: Failure & Repeated Fail Point Action Plan Logic ---
+  const failureActionPoints = useMemo(() => {
+    if (!Array.isArray(audits)) return [];
+
+    const failures = [];
+    const failCounts = {}; 
+
+    audits.forEach((audit) => {
+      if (!Array.isArray(audit.answers)) return;
+      audit.answers.forEach((ans) => {
+        const normalized = normalizeAnswer(ans.answer);
+        if (normalized === "Fail") {
+          const mId = audit.machine?._id || audit.machine || "unknown";
+          const qId = ans.question?._id || ans.question || "unknown";
+          const key = `${mId}-${qId}`;
+          failCounts[key] = (failCounts[key] || 0) + 1;
+
+          failures.push({
+            auditId: audit._id,
+            answerId: ans._id,
+            date: audit.date || audit.createdAt,
+            machine: audit.machine?.name || audit.line?.name || audit.department?.name || "N/A",
+            line: audit.line?.name || "N/A",
+            department: audit.department?.name || "N/A",
+            question: ans.question?.questionText || "Unknown Point",
+            key,
+            actionPlan: ans.actionPlan || "",
+            actionOwner: ans.actionOwner || "",
+            actionDeadline: ans.actionDeadline || "",
+            actionStatus: ans.actionStatus || "Pending",
+          });
+        }
+      });
+    });
+
+    return failures.map((f, index) => {
+      const isRepeated = failCounts[f.key] > 1;
+      let effectivePlan = f.actionPlan;
+      if (!effectivePlan && isRepeated) {
+        const previousFailure = failures.slice(index + 1).find(pf => pf.key === f.key && pf.actionPlan);
+        if (previousFailure) effectivePlan = previousFailure.actionPlan;
+      }
+      return { ...f, isRepeated, repeatCount: failCounts[f.key], actionPlan: effectivePlan };
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [audits]);
+
+  const [updateActionPlan] = useUpdateAuditActionPlanMutation();
+  const [editingPoint, setEditingPoint] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    actionPlan: "",
+    actionOwner: "",
+    actionDeadline: "",
+    actionStatus: "Pending",
+  });
+
+  const handleEditOpen = (point) => {
+    setEditingPoint(point);
+    setEditFormData({
+      actionPlan: point.actionPlan || "",
+      actionOwner: point.actionOwner || "",
+      actionDeadline: point.actionDeadline ? format(new Date(point.actionDeadline), "yyyy-MM-dd") : "",
+      actionStatus: point.actionStatus || "Pending",
+    });
+  };
+
+  const handleSaveActionPlan = async () => {
+    if (!editingPoint) return;
+    try {
+      await updateActionPlan({
+        auditId: editingPoint.auditId,
+        answerId: editingPoint.answerId,
+        ...editFormData,
+      }).unwrap();
+      setEditingPoint(null);
+    } catch (err) {
+      console.error("Failed to save action plan:", err);
+    }
+  };
+
+  const handleExportClick = (data, categoryType) => {
+    if (!data || !data.name) return;
+    
+    const machineName = data.name;
+    const catLabel = categoryType === 'critical' ? 'Critical' : 'Non-Critical';
+    
+    // Filter failures for this machine and category
+    const exportData = [];
+    
+    audits.forEach(audit => {
+      const auditMachine = audit.machine?.name || audit.line?.name || audit.department?.name || "N/A";
+      if (auditMachine !== machineName) return;
+      
+      // Match chart fallback logic: default to 'non-critical' if category is missing
+      const auditCategory = audit.auditor?.category || "non-critical";
+      if (auditCategory !== categoryType) return;
+      
+      if (!audit.answers) return;
+      audit.answers.forEach(ans => {
+        const normalized = normalizeAnswer(ans.answer);
+        if (normalized === "Fail") {
+          exportData.push({
+            'Date': audit.date ? format(new Date(audit.date), "yyyy-MM-dd HH:mm") : "N/A",
+            'Department': audit.department?.name || "N/A",
+            'Line': audit.line?.name || "N/A",
+            'Machine': auditMachine,
+            'Auditor': audit.auditor?.fullName || audit.auditor?.name || "N/A",
+            'Auditor Category': catLabel,
+            'Question': ans.question?.questionText || "Unknown Point",
+            'Answer': ans.answer || "Fail",
+            'Remark': ans.comment || ans.remark || "N/A",
+            'Action Plan': ans.actionPlan || "N/A",
+            'Owner': ans.actionOwner || "N/A",
+            'Deadline': ans.actionDeadline ? format(new Date(ans.actionDeadline), "yyyy-MM-dd") : "N/A",
+            'Status': ans.actionStatus || "Pending"
+          });
+        }
+      });
+    });
+
+    if (exportData.length === 0) {
+      alert("No failure records found for this selection.");
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Failures");
+    XLSX.writeFile(wb, `${machineName.replace(/[/\\?%*:|"<>]/g, '-')}_${catLabel}_Failures.xlsx`);
+  };
 
   const unitScopeLabel = useMemo(() => {
     if (role === 'superadmin') {
@@ -688,6 +877,23 @@ export default function AdminDashboard() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Category */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Category
+              </label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="non-critical">Non-Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -841,31 +1047,34 @@ export default function AdminDashboard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Total Audits Over Time
+            <BarChart3 className="h-5 w-5" />
+            Layer Wise Audit Nos.
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={auditCountData}>
+              <BarChart data={auditCountData}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="hsl(var(--muted))"
                   opacity={0.3}
+                  vertical={false}
                 />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 12 }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
                 />
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 12 }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  tickLine={false}
+                  axisLine={false}
                 />
                 <Tooltip
-                  formatter={(value) => [`${value} audits`, 'Audits']}
+                  cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                   contentStyle={{
                     backgroundColor: 'hsl(var(--background))',
                     border: '1px solid hsl(var(--border))',
@@ -873,15 +1082,11 @@ export default function AdminDashboard() {
                     boxShadow: '0 4px 12px hsl(var(--foreground) / 0.15)'
                   }}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="total"
-                  stroke={CHART_COLORS.primary}
-                  strokeWidth={3}
-                  dot={{ r: 5, fill: CHART_COLORS.primary }}
-                  activeDot={{ r: 7, fill: CHART_COLORS.primary }}
-                />
-              </LineChart>
+                <Legend verticalAlign="top" height={36}/>
+                <Bar dataKey="Layer 1" fill="#0ea5e9" stackId="layer" barSize={30} />
+                <Bar dataKey="Layer 2" fill="#f59e0b" stackId="layer" barSize={30} />
+                <Bar dataKey="Layer 3" fill="#10b981" stackId="layer" radius={[4, 4, 0, 0]} barSize={30} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
@@ -1049,15 +1254,15 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Top 10 Defect Analysis by Machine */}
+      {/* Process Wise Failure Trend */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Top 10 Machine Performance (Defects vs Pass)
+            Process Wise Failure Trend
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Showing top machines with highest defect counts across selected filters
+          <p className="text-sm text-muted-foreground flex items-center gap-1">
+            Top 10 failure-prone processes (Machines). <span className="flex items-center gap-1 text-blue-600 font-medium"><Download className="h-3 w-3" /> Click any bar to export details to Excel</span>
           </p>
         </CardHeader>
         <CardContent>
@@ -1065,7 +1270,7 @@ export default function AdminDashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 layout="vertical"
-                data={machinePerformanceData}
+                data={processWiseFailureData}
                 margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -1078,29 +1283,229 @@ export default function AdminDashboard() {
                   interval={0}
                 />
                 <Tooltip
-                  formatter={(value, name) => [`${value} answers`, name]}
-                  contentStyle={{ fontSize: 12 }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-3 border rounded-lg shadow-lg text-xs">
+                          <p className="font-bold mb-1">{label}</p>
+                          <p className="text-muted-foreground mb-2">
+                             {data.department} | {data.line}
+                          </p>
+                          <div className="space-y-1">
+                            {payload.map((entry, index) => (
+                              <div key={index} className="flex items-center justify-between gap-4">
+                                <span style={{ color: entry.color }}>{entry.name}:</span>
+                                <span className="font-semibold">{entry.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-2 pt-2 border-t text-[10px] text-blue-600 font-medium animate-pulse flex items-center gap-1">
+                            <Download className="h-2 w-2" /> Click to export detailed Excel
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar
-                  dataKey="Fail"
-                  fill={CHART_COLORS.error}
+                  dataKey="Critical Failure"
+                  fill="#be123c"
                   stackId="a"
-                  name="Fail Answers"
-                  radius={[0, 4, 4, 0]}
+                  name="Critical Failures"
+                  cursor="pointer"
+                  onClick={(data) => handleExportClick(data, 'critical')}
+                />
+                <Bar
+                  dataKey="Non-Critical Failure"
+                  fill="#f43f5e"
+                  stackId="a"
+                  name="Non-Critical Failures"
+                  cursor="pointer"
+                  onClick={(data) => handleExportClick(data, 'non-critical')}
                 />
                 <Bar
                   dataKey="Pass"
                   fill={CHART_COLORS.success}
                   stackId="a"
                   name="Pass Answers"
-                  radius={[0, 0, 0, 0]}
+                  opacity={0.3}
                 />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
+
+      {/* Failure & Repeated Fail Point Action Plan */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Failure & Repeated Fail Point Action Plan
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Manage remediation plans for specific failures
+            </p>
+          </div>
+          <Badge variant="outline">
+            {failureActionPoints.length} Failures
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Process (Machine)</TableHead>
+                  <TableHead>Point (Question)</TableHead>
+                  <TableHead>Frequency</TableHead>
+                  <TableHead>Action Plan</TableHead>
+                  <TableHead>Owner</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {failureActionPoints.map((point) => (
+                  <TableRow key={point.answerId}>
+                    <TableCell className="whitespace-nowrap">
+                      {format(new Date(point.date), "MMM dd, HH:mm")}
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{point.machine}</div>
+                      <div className="text-xs text-muted-foreground">{point.department} | {point.line}</div>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={point.question}>
+                      {point.question}
+                    </TableCell>
+                    <TableCell>
+                      {point.isRepeated ? (
+                        <Badge variant="destructive" className="flex items-center gap-1 w-fit text-[10px] px-1">
+                          <RotateCcw className="h-3 w-3" /> Repeated ({point.repeatCount})
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px] px-1">New</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[150px] truncate italic text-muted-foreground text-xs">
+                      {point.actionPlan || "No plan yet..."}
+                    </TableCell>
+                    <TableCell className="text-xs">{point.actionOwner || "—"}</TableCell>
+                    <TableCell>
+                      {point.actionStatus === "Resolved" ? (
+                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 text-[10px]">
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Resolved
+                        </Badge>
+                      ) : point.actionStatus === "In Progress" ? (
+                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200 text-[10px]">
+                          <Clock className="h-3 w-3 mr-1" /> In Progress
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-slate-50 text-[10px]">
+                          <AlertCircle className="h-3 w-3 mr-1" /> Pending
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEditOpen(point)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!failureActionPoints.length && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground italic">
+                       No failure points detected in the current scope.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Action Plan Edit Dialog */}
+      <Dialog open={!!editingPoint} onOpenChange={(open) => !open && setEditingPoint(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Update Action Plan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2 p-3 bg-muted rounded-lg text-sm">
+              <div className="flex justify-between">
+                <span className="font-semibold text-muted-foreground">Machine:</span>
+                <span>{editingPoint?.machine}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold text-muted-foreground">Point:</span>
+                <span className="text-right max-w-[250px] truncate">{editingPoint?.question}</span>
+              </div>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="actionPlan">Action Plan</Label>
+              <Textarea
+                id="actionPlan"
+                value={editFormData.actionPlan}
+                onChange={(e) => setEditFormData({ ...editFormData, actionPlan: e.target.value })}
+                placeholder="Remediation steps..."
+                className="min-h-[80px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="actionOwner">Owner</Label>
+                <Input
+                  id="actionOwner"
+                  value={editFormData.actionOwner}
+                  onChange={(e) => setEditFormData({ ...editFormData, actionOwner: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="actionDeadline">Deadline</Label>
+                <Input
+                  id="actionDeadline"
+                  type="date"
+                  value={editFormData.actionDeadline}
+                  onChange={(e) => setEditFormData({ ...editFormData, actionDeadline: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="actionStatus">Status</Label>
+              <Select 
+                value={editFormData.actionStatus} 
+                onValueChange={(val) => setEditFormData({ ...editFormData, actionStatus: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingPoint(null)}>Cancel</Button>
+            <Button onClick={handleSaveActionPlan}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

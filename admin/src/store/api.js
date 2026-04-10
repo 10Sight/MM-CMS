@@ -234,6 +234,14 @@ export const api = createApi({
       query: (id) => ({ url: `/api/audits/${id}`, method: 'DELETE' }),
       invalidatesTags: [{ type: 'Audit', id: 'LIST' }],
     }),
+    updateAuditActionPlan: builder.mutation({
+      query: ({ auditId, answerId, ...body }) => ({
+        url: `/api/audits/${auditId}/answers/${answerId}/action-plan`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: (result, error, { auditId }) => [{ type: 'Audit', id: auditId }, { type: 'Audit', id: 'LIST' }],
+    }),
 
     // Departments
     getDepartments: builder.query({
@@ -363,6 +371,7 @@ export const {
   useCreateAuditMutation,
   useUpdateAuditMutation,
   useDeleteAuditMutation,
+  useUpdateAuditActionPlanMutation,
   useGetDepartmentsQuery,
   useGetDepartmentByIdQuery,
   useGetDepartmentStatsQuery,

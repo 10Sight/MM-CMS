@@ -370,6 +370,13 @@ export default function EmployeeDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Designation</p>
+                  <p className="font-medium capitalize">{employee.designation || "—"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-xs text-muted-foreground">Joined</p>

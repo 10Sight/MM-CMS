@@ -11,6 +11,7 @@ import {
   updateAuditEmailSettings,
   getAuditFormSettings,
   updateAuditFormSettings,
+  updateAuditActionPlan,
 } from "../controllers/audit.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { cache, cacheConfig } from "../middlewares/cache.middleware.js";
@@ -40,5 +41,6 @@ router.get("/:id", verifyJWT, cache(cacheConfig.medium), getAuditById);
 router.post("/:id/share", verifyJWT, authorizeRoles("admin", "employee"), shareAuditByEmail);
 router.delete("/:id", verifyJWT, authorizeRoles("admin"), deleteAudit);
 router.put("/:id", verifyJWT, authorizeRoles("admin"), updateAudit);
+router.put("/:id/answers/:answerId/action-plan", verifyJWT, authorizeRoles("admin", "superadmin"), updateAuditActionPlan);
 
 export default router;

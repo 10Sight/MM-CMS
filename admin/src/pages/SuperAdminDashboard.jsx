@@ -11,6 +11,7 @@ import {
   useGetDepartmentsQuery,
   useGetLinesQuery,
   useGetMachinesQuery,
+  useUpdateAuditActionPlanMutation,
 } from "@/store/api";
 import { useNavigate } from "react-router-dom";
 import {
@@ -23,7 +24,16 @@ import {
   Filter as FilterIcon,
   TrendingUp,
   PieChart as PieChartIcon,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  Edit,
+  XCircle,
+  AlertTriangle,
+  RotateCcw,
+  Download,
 } from "lucide-react";
+import * as XLSX from 'xlsx';
 import {
   ResponsiveContainer,
   LineChart,
@@ -40,8 +50,25 @@ import {
   Bar,
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/AuthContext";
 import { format, startOfMonth, startOfWeek, startOfYear } from "date-fns";
+
+const designations = [
+  { label: "Plant Head", value: "plant head" },
+  { label: "HOD", value: "hod" },
+  { label: "Shift Incharge", value: "shift incharge" },
+  { label: "Team Leader", value: "team leader" },
+];
 
 export default function SuperAdminDashboard() {
   const navigate = useNavigate();
@@ -58,6 +85,10 @@ export default function SuperAdminDashboard() {
       admins: usersList.filter((u) => u.role === "admin").length,
       employees: usersList.filter((u) => u.role === "employee").length,
       superadmins: usersList.filter((u) => u.role === "superadmin").length,
+      plantHeads: usersList.filter((u) => u.role === "plant head").length,
+      hods: usersList.filter((u) => u.role === "hod").length,
+      shiftIncharges: usersList.filter((u) => u.role === "shift incharge").length,
+      teamLeaders: usersList.filter((u) => u.role === "team leader").length,
       recentUsers: usersList.slice(0, 5),
     }),
     [usersRes, usersList]
@@ -67,6 +98,10 @@ export default function SuperAdminDashboard() {
   const admins = statsRes?.data?.admins ?? fallbackCounts.admins ?? 0;
   const employees = statsRes?.data?.employees ?? fallbackCounts.employees ?? 0;
   const superadmins = statsRes?.data?.superadmins ?? fallbackCounts.superadmins ?? 0;
+  const plantHeads = statsRes?.data?.plantHeads ?? fallbackCounts.plantHeads ?? 0;
+  const hods = statsRes?.data?.hods ?? fallbackCounts.hods ?? 0;
+  const shiftIncharges = statsRes?.data?.shiftIncharges ?? fallbackCounts.shiftIncharges ?? 0;
+  const teamLeaders = statsRes?.data?.teamLeaders ?? fallbackCounts.teamLeaders ?? 0;
   const recentUsers = statsRes?.data?.recentUsers ?? fallbackCounts.recentUsers ?? [];
 
   const units = unitsRes?.data || [];
@@ -74,8 +109,10 @@ export default function SuperAdminDashboard() {
 
   const [selectedUnit, setSelectedUnit] = useState("all");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [selectedDesignation, setSelectedDesignation] = useState("all");
   const [selectedLine, setSelectedLine] = useState("all");
   const [selectedMachine, setSelectedMachine] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [timeframe, setTimeframe] = useState("daily"); // daily | weekly | monthly | yearly
   const [answerType, setAnswerType] = useState("all"); // all | pass | fail | na
 
@@ -128,8 +165,10 @@ export default function SuperAdminDashboard() {
       limit: 1000,
       unit: selectedUnit !== "all" ? selectedUnit : undefined,
       department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+      designation: selectedDesignation !== "all" ? selectedDesignation : undefined,
       line: selectedLine !== "all" ? selectedLine : undefined,
       machine: selectedMachine !== "all" ? selectedMachine : undefined,
+      category: selectedCategory !== "all" ? selectedCategory : undefined,
     },
     { pollingInterval: 30000 }
   );
@@ -218,20 +257,149 @@ export default function SuperAdminDashboard() {
       .map((period) => ({ date: period, ...countsByPeriod[period] }));
   }, [audits, timeframe, answerType]);
 
-  // Total audits over time (count of audits per period)
+  // Layer wise audit nos over time
   const auditCountData = useMemo(() => {
     if (!Array.isArray(audits)) return [];
+
+    const getTimeframeKey = (date, mode) => {
+      const d = new Date(date);
+      if (mode === "daily") return format(d, "MMM dd");
+      if (mode === "weekly") return `Week ${format(d, "ww")}`;
+      if (mode === "monthly") return format(d, "MMM yy");
+      if (mode === "yearly") return format(d, "yyyy");
+      return format(d, "MMM dd");
+    };
+
+    const getLayer = (desig) => {
+      const d = (desig || "").toLowerCase();
+      if (d === "team leader" || d === "shift incharge" || d === "none" || d === "") return "Layer 1";
+      if (d === "hod") return "Layer 2";
+      if (d === "plant head") return "Layer 3";
+      return "Layer 1"; // Default any other recognized designation to Layer 1 for completeness
+    };
 
     const countsByPeriod = {};
     audits.forEach((audit) => {
       const key = getTimeframeKey(audit.date || audit.createdAt, timeframe);
-      countsByPeriod[key] = (countsByPeriod[key] || 0) + 1;
+      if (!countsByPeriod[key]) {
+        countsByPeriod[key] = { "Layer 1": 0, "Layer 2": 0, "Layer 3": 0 };
+      }
+      const desig = audit.auditor?.designation || audit.createdBy?.designation;
+      const layer = getLayer(desig);
+      if (layer) {
+        countsByPeriod[key][layer]++;
+      }
     });
 
     return Object.keys(countsByPeriod)
       .sort((a, b) => new Date(a) - new Date(b))
-      .map((period) => ({ date: period, total: countsByPeriod[period] }));
+      .map((period) => ({ 
+        date: period, 
+        ...countsByPeriod[period]
+      }));
   }, [audits, timeframe]);
+
+  // --- NEW: Layer-wise Plan vs Actual Data ---
+  const layerWiseData = useMemo(() => {
+    const designations = ["plant head", "hod", "shift incharge", "team leader"];
+    return designations.map((desig) => {
+      // Plan: Sum of targetAudit.total for users with this designation
+      const planValue = usersList
+        .filter((u) => (u.designation || "none") === desig)
+        .reduce((sum, u) => sum + (u.targetAudit?.total || 0), 0);
+
+      // Actual: Count of audits completed by users with this designation
+      const actualValue = audits.filter((a) => {
+        const creatorDesig = a.createdBy?.designation || a.auditor?.designation;
+        return (creatorDesig || "none") === desig;
+      }).length;
+
+      return {
+        name: desig.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+        Plan: planValue,
+        Actual: actualValue,
+      };
+    });
+  }, [usersList, audits]);
+
+  // --- NEW: Monthly Role Contribution Data ---
+  const contributionData = useMemo(() => {
+    const designations = ["plant head", "hod", "shift incharge", "team leader"];
+    const monthMap = {};
+
+    audits.forEach((audit) => {
+      const date = audit.date || audit.createdAt;
+      if (!date) return;
+      
+      const monthKey = format(new Date(date), "MMM.yy");
+      const creatorDesig = audit.createdBy?.designation || audit.auditor?.designation;
+
+      if (designations.includes(creatorDesig)) {
+        if (!monthMap[monthKey]) {
+          monthMap[monthKey] = { month: monthKey };
+          designations.forEach((d) => {
+            const label = d.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            monthMap[monthKey][label] = 0;
+          });
+        }
+        const desigLabel = creatorDesig.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        monthMap[monthKey][desigLabel]++;
+      }
+    });
+
+    return Object.values(monthMap).sort((a, b) => {
+      const parseDate = (m) => {
+        const [mon, yr] = m.split('.');
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return new Date(`20${yr}`, monthNames.indexOf(mon));
+      };
+      return parseDate(a.month) - parseDate(b.month);
+    });
+  }, [audits]);
+
+  // --- NEW: Monthly Completion Percentage Data (Overall) ---
+  const monthlyPercentageData = useMemo(() => {
+    const designations = ["plant head", "hod", "shift incharge", "team leader"];
+    const monthMap = {};
+
+    // Calculate total plan for all management layers combined
+    const totalPlan = usersList
+      .filter((u) => designations.includes(u.designation || "none"))
+      .reduce((sum, u) => sum + (u.targetAudit?.total || 0), 0);
+
+    // Group actual audits by month
+    audits.forEach((audit) => {
+      const date = audit.date || audit.createdAt;
+      if (!date) return;
+      
+      const monthKey = format(new Date(date), "MMM.yy");
+      const creatorDesig = audit.createdBy?.designation || audit.auditor?.designation;
+
+      if (designations.includes(creatorDesig)) {
+        if (!monthMap[monthKey]) {
+          monthMap[monthKey] = { month: monthKey, actual: 0 };
+        }
+        monthMap[monthKey].actual++;
+      }
+    });
+
+    // Calculate overall percentage per month
+    return Object.values(monthMap).map(data => {
+      return {
+        month: data.month,
+        "Overall": totalPlan > 0 ? Math.round((data.actual / totalPlan) * 100) : 0,
+        actual: data.actual,
+        plan: totalPlan
+      };
+    }).sort((a, b) => {
+      const parseDate = (m) => {
+        const [mon, yr] = m.split('.');
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return new Date(`20${yr}`, monthNames.indexOf(mon));
+      };
+      return parseDate(a.month) - parseDate(b.month);
+    });
+  }, [audits, usersList]);
 
   const answerStats = useMemo(() => {
     if (!Array.isArray(audits)) return { pass: 0, fail: 0, na: 0, total: 0 };
@@ -255,43 +423,193 @@ export default function SuperAdminDashboard() {
     return { pass, fail, na, total };
   }, [audits]);
 
-  // Machine Performance Data (Pass vs Fail by Line/Machine/Department)
-  const machinePerformanceData = useMemo(() => {
+  // --- NEW: Process Wise Failure Trend Data ---
+  const processWiseFailureData = useMemo(() => {
     if (!Array.isArray(audits)) return [];
 
-    const stats = {}; // Key: "Dept - Line - Machine", Value: { Pass: 0, Fail: 0 }
+    const stats = {}; // Key: "Process Name", Value: { Pass: 0, Fail: 0, CriticalFail: 0, NonCriticalFail: 0 }
 
     audits.forEach((audit) => {
-      // Ensure we have machine info; if not, skip or group under "Unknown"
-      const deptName = audit.department?.name || "N/A";
-      const lineName = audit.line?.name || "N/A";
-      const machineName = audit.machine?.name || "N/A";
+      // Per user request: "Process" means "Machine" in this context
+      // Fallback: If machine name is missing, use Line or Department as the identifier
+      const processName = audit.machine?.name || audit.line?.name || audit.department?.name || "N/A";
+      const auditorCategory = audit.auditor?.category || "non-critical";
 
-      // Label format: "Line - Machine" (Department implied if filtered, or add it if not)
-      let label = machineName;
-      if (selectedLine === "all") label = `${lineName} - ${machineName}`;
-      if (selectedDepartment === "all") label = `${deptName} - ${lineName} - ${machineName}`;
+      if (!stats[processName]) {
+        stats[processName] = { 
+          name: processName, 
+          Pass: 0, 
+          Fail: 0, 
+          "Critical Failure": 0, 
+          "Non-Critical Failure": 0,
+          department: audit.department?.name || "N/A",
+          line: audit.line?.name || "N/A"
+        };
+      }
 
-      // Truncate label if too long
-      if (label.length > 30) label = label.substring(0, 30) + "...";
-
-      if (!stats[label]) stats[label] = { name: label, Pass: 0, Fail: 0 };
-
-      // Aggregate answers
       if (Array.isArray(audit.answers)) {
         audit.answers.forEach((ans) => {
           const normalized = normalizeAnswer(ans.answer);
-          if (normalized === "Pass") stats[label].Pass++;
-          else if (normalized === "Fail") stats[label].Fail++;
+          if (normalized === "Pass") {
+            stats[processName].Pass++;
+          } else if (normalized === "Fail") {
+            stats[processName].Fail++;
+            if (auditorCategory === "critical") {
+              stats[processName]["Critical Failure"]++;
+            } else {
+              stats[processName]["Non-Critical Failure"]++;
+            }
+          }
         });
       }
     });
 
-    // Convert to array and sort by Fail count descending
     return Object.values(stats)
       .sort((a, b) => b.Fail - a.Fail)
-      .slice(0, 10); // Top 10 worst
-  }, [audits, selectedDepartment, selectedLine]);
+      .slice(0, 10);
+  }, [audits]);
+
+  // --- NEW: Failure & Repeated Fail Point Action Plan Logic ---
+  const failureActionPoints = useMemo(() => {
+    if (!Array.isArray(audits)) return [];
+
+    const failures = [];
+    const failCounts = {}; // Key: "machineId-questionId", Value: Count
+
+    // First pass: Identify all failures and count unique (machine + question) occurrences
+    audits.forEach((audit) => {
+      if (!Array.isArray(audit.answers)) return;
+
+      audit.answers.forEach((ans) => {
+        const normalized = normalizeAnswer(ans.answer);
+        if (normalized === "Fail") {
+          const mId = audit.machine?._id || audit.machine || "unknown";
+          const qId = ans.question?._id || ans.question || "unknown";
+          const key = `${mId}-${qId}`;
+          failCounts[key] = (failCounts[key] || 0) + 1;
+
+          failures.push({
+            auditId: audit._id,
+            answerId: ans._id,
+            date: audit.date || audit.createdAt,
+            machine: audit.machine?.name || audit.line?.name || audit.department?.name || "N/A",
+            machineId: audit.machine?._id || audit.machine || "unknown",
+            line: audit.line?.name || "N/A",
+            department: audit.department?.name || "N/A",
+            question: ans.question?.questionText || "Unknown Point",
+            key,
+            actionPlan: ans.actionPlan || "",
+            actionOwner: ans.actionOwner || "",
+            actionDeadline: ans.actionDeadline || "",
+            actionStatus: ans.actionStatus || "Pending",
+          });
+        }
+      });
+    });
+
+    // Apply "Repeated" logic and persistence fallback
+    return failures.map((f, index) => {
+      const isRepeated = failCounts[f.key] > 1;
+      
+      // Persistence fallback: if current plan is empty, look for the most recent plan for the same key
+      let effectivePlan = f.actionPlan;
+      if (!effectivePlan && isRepeated) {
+        const previousFailure = failures.slice(index + 1).find(pf => pf.key === f.key && pf.actionPlan);
+        if (previousFailure) effectivePlan = previousFailure.actionPlan;
+      }
+
+      return {
+        ...f,
+        isRepeated,
+        repeatCount: failCounts[f.key],
+        actionPlan: effectivePlan,
+      };
+    }).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by most recent
+  }, [audits]);
+
+  const [updateActionPlan] = useUpdateAuditActionPlanMutation();
+  const [editingPoint, setEditingPoint] = useState(null); // The point currently being edited
+  const [editFormData, setEditFormData] = useState({
+    actionPlan: "",
+    actionOwner: "",
+    actionDeadline: "",
+    actionStatus: "Pending",
+  });
+
+  const handleEditOpen = (point) => {
+    setEditingPoint(point);
+    setEditFormData({
+      actionPlan: point.actionPlan || "",
+      actionOwner: point.actionOwner || "",
+      actionDeadline: point.actionDeadline ? format(new Date(point.actionDeadline), "yyyy-MM-dd") : "",
+      actionStatus: point.actionStatus || "Pending",
+    });
+  };
+
+  const handleSaveActionPlan = async () => {
+    if (!editingPoint) return;
+    try {
+      await updateActionPlan({
+        auditId: editingPoint.auditId,
+        answerId: editingPoint.answerId,
+        ...editFormData,
+      }).unwrap();
+      setEditingPoint(null);
+    } catch (err) {
+      console.error("Failed to save action plan:", err);
+    }
+  };
+
+  const handleExportClick = (data, categoryType) => {
+    if (!data || !data.name) return;
+    
+    const machineName = data.name;
+    const catLabel = categoryType === 'critical' ? 'Critical' : 'Non-Critical';
+    
+    // Filter failures for this machine and category
+    const exportData = [];
+    
+    audits.forEach(audit => {
+      const auditMachine = audit.machine?.name || audit.line?.name || audit.department?.name || "N/A";
+      if (auditMachine !== machineName) return;
+
+      // Match chart fallback logic: default to 'non-critical' if category is missing
+      const auditCategory = audit.auditor?.category || "non-critical";
+      if (auditCategory !== categoryType) return;
+      
+      if (!audit.answers) return;
+      audit.answers.forEach(ans => {
+        const normalized = normalizeAnswer(ans.answer);
+        if (normalized === "Fail") {
+          exportData.push({
+            'Date': audit.date ? format(new Date(audit.date), "yyyy-MM-dd HH:mm") : "N/A",
+            'Department': audit.department?.name || "N/A",
+            'Line': audit.line?.name || "N/A",
+            'Machine': auditMachine,
+            'Auditor': audit.auditor?.fullName || audit.auditor?.name || "N/A",
+            'Auditor Category': catLabel,
+            'Question': ans.question?.questionText || "Unknown Point",
+            'Answer': ans.answer || "Fail",
+            'Remark': ans.comment || ans.remark || "N/A",
+            'Action Plan': ans.actionPlan || "N/A",
+            'Owner': ans.actionOwner || "N/A",
+            'Deadline': ans.actionDeadline ? format(new Date(ans.actionDeadline), "yyyy-MM-dd") : "N/A",
+            'Status': ans.actionStatus || "Pending"
+          });
+        }
+      });
+    });
+
+    if (exportData.length === 0) {
+      alert("No failure records found for this selection.");
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Failures");
+    XLSX.writeFile(wb, `${machineName.replace(/[/\\?%*:|"<>]/g, '-')}_${catLabel}_Failures.xlsx`);
+  };
 
   const todayLabel = useMemo(() => format(new Date(), "MMM dd, yyyy"), []);
 
@@ -340,7 +658,7 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* Top stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         {[
           {
             title: "Total Users",
@@ -351,26 +669,44 @@ export default function SuperAdminDashboard() {
           {
             title: "Admins",
             value: admins,
-            description: "Manage system",
+            description: "Unit management",
             icon: ShieldCheck,
+          },
+          {
+            title: "Plant Heads",
+            value: plantHeads,
+            description: "Plant overseers",
+            icon: Building2,
+          },
+          {
+            title: "HODs",
+            value: hods,
+            description: "Dept heads",
+            icon: Users,
+          },
+          {
+            title: "Shift Incharge",
+            value: shiftIncharges,
+            description: "Shift leaders",
+            icon: Users,
+          },
+          {
+            title: "Team Leaders",
+            value: teamLeaders,
+            description: "Line supervisors",
+            icon: Users,
           },
           {
             title: "Auditors",
             value: employees,
-            description: "Operational users",
+            description: "Audit staff",
             icon: ClipboardCheck,
           },
           {
             title: "Total Audits",
             value: totalAudits,
-            description: "Across all filters",
+            description: "Lifetime",
             icon: BarChart3,
-          },
-          {
-            title: "Total Units",
-            value: totalUnits,
-            description: "Configured units",
-            icon: Building2,
           },
         ].map((metric) => {
           const Icon = metric.icon;
@@ -515,6 +851,22 @@ export default function SuperAdminDashboard() {
               </Select>
             </div>
 
+            {/* Designation Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Designation</label>
+              <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Designations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Designations</SelectItem>
+                  {designations.map((d) => (
+                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Timeframe grouping */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">Timeframe</label>
@@ -530,12 +882,151 @@ export default function SuperAdminDashboard() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Category Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Category</label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="non-critical">Non-Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Layer wise Audit nos. of plan vs actual */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+               <TrendingUp className="h-5 w-5" />
+               Layer wise Audit nos. of plan vs actual
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={layerWiseData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36}/>
+                  <Bar dataKey="Plan" name="Plan" fill="#0f172a" radius={[4, 4, 0, 0]} barSize={25} />
+                  <Bar dataKey="Actual" name="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={25} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Monthly Role Contribution (Stacked) */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Monthly Role Wise Audit Contribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={contributionData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="month" 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36}/>
+                  <Bar dataKey="Plant Head" stackId="role" fill="#eab308" barSize={35} />
+                  <Bar dataKey="Hod" stackId="role" fill="#f97316" barSize={35} />
+                  <Bar dataKey="Shift Incharge" stackId="role" fill="#94a3b8" barSize={35} />
+                  <Bar dataKey="Team Leader" stackId="role" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={35} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Monthly Completion Percentage Chart */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Monthly Audit Completion % (Overall)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[350px] w-full mt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyPercentageData} margin={{ top: 20, right: 30, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="month" 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                    domain={[0, 100]}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    formatter={(value, name) => {
+                      if (name === "Overall") return [`${value}%`, "Completion Rate"];
+                      return [value, name];
+                    }}
+                  />
+                  <Legend verticalAlign="bottom" height={36}/>
+                  <Line 
+                    type="monotone" 
+                    dataKey="Overall" 
+                    stroke="#f97316" 
+                    strokeWidth={3} 
+                    dot={{ r: 4, fill: "#f97316" }} 
+                    activeDot={{ r: 6 }} 
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Audit trend over time (per audit Pass/Fail, like admin dashboard) */}
         <Card>
           <CardHeader>
@@ -660,30 +1151,30 @@ export default function SuperAdminDashboard() {
         </Card>
       </div>
 
-      {/* Total audits over time (uses same timeframe filter) */}
+      {/* Layer Wise Audit Nos. over time */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Total Audits Over Time
+            <BarChart3 className="h-5 w-5" />
+            Layer Wise Audit Nos.
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={auditCountData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(value) => [`${value} audits`, 'Audits']} />
-                <Line
-                  type="monotone"
-                  dataKey="total"
-                  stroke={CHART_COLORS.success}
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: CHART_COLORS.success }}
+              <BarChart data={auditCountData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 />
-              </LineChart>
+                <Legend verticalAlign="top" height={36}/>
+                <Bar dataKey="Layer 1" fill="#0ea5e9" stackId="layer" barSize={30} />
+                <Bar dataKey="Layer 2" fill="#f59e0b" stackId="layer" barSize={30} />
+                <Bar dataKey="Layer 3" fill="#10b981" stackId="layer" radius={[4, 4, 0, 0]} barSize={30} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
@@ -718,15 +1209,15 @@ export default function SuperAdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Top 10 Defect Analysis by Machine */}
+      {/* Process Wise Failure Trend */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Top 10 Machine Performance (Defects vs Pass)
+            Process Wise Failure Trend
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Showing top machines with highest defect counts across selected filters
+            Top 10 failure-prone processes across selected filters
           </p>
         </CardHeader>
         <CardContent>
@@ -734,7 +1225,7 @@ export default function SuperAdminDashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 layout="vertical"
-                data={machinePerformanceData}
+                data={processWiseFailureData}
                 margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -747,15 +1238,49 @@ export default function SuperAdminDashboard() {
                   interval={0}
                 />
                 <Tooltip
-                  formatter={(value, name) => [`${value} answers`, name]}
-                  contentStyle={{ fontSize: 12 }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-3 border rounded-lg shadow-lg text-xs">
+                          <p className="font-bold mb-1">{label}</p>
+                          <p className="text-muted-foreground mb-2">
+                             {data.department} | {data.line}
+                          </p>
+                          <div className="space-y-1">
+                            {payload.map((entry, index) => (
+                              <div key={index} className="flex items-center justify-between gap-4">
+                                <span style={{ color: entry.color }}>{entry.name}:</span>
+                                <span className="font-semibold">{entry.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-2 pt-2 border-t text-[10px] text-blue-600 font-medium animate-pulse flex items-center gap-1">
+                            <Download className="h-2 w-2" /> Click to export detailed Excel
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar
-                  dataKey="Fail"
-                  fill={CHART_COLORS.error}
+                  dataKey="Critical Failure"
+                  fill="#be123c"
                   stackId="a"
-                  name="Fail Answers"
+                  name="Critical Failures"
+                  cursor="pointer"
+                  onClick={(data) => handleExportClick(data, 'critical')}
+                  radius={[0, 0, 0, 0]}
+                />
+                <Bar
+                  dataKey="Non-Critical Failure"
+                  fill="#f43f5e"
+                  stackId="a"
+                  name="Non-Critical Failures"
+                  cursor="pointer"
+                  onClick={(data) => handleExportClick(data, 'non-critical')}
                   radius={[0, 4, 4, 0]}
                 />
                 <Bar
@@ -763,6 +1288,7 @@ export default function SuperAdminDashboard() {
                   fill={CHART_COLORS.success}
                   stackId="a"
                   name="Pass Answers"
+                  opacity={0.3}
                   radius={[0, 0, 0, 0]}
                 />
               </BarChart>
@@ -770,6 +1296,177 @@ export default function SuperAdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Failure & Repeated Fail Point Action Plan */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Failure & Repeated Fail Point Action Plan
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Manage remediation plans for current and recurring failure points
+            </p>
+          </div>
+          <Badge variant="outline" className="h-fit">
+            {failureActionPoints.length} Failures Detected
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Process (Machine)</TableHead>
+                  <TableHead>Point (Question)</TableHead>
+                  <TableHead>Frequency</TableHead>
+                  <TableHead>Action Plan</TableHead>
+                  <TableHead>Owner</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {failureActionPoints.map((point) => (
+                  <TableRow key={point.answerId}>
+                    <TableCell className="whitespace-nowrap">
+                      {format(new Date(point.date), "MMM dd, HH:mm")}
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{point.machine}</div>
+                      <div className="text-xs text-muted-foreground">{point.department} | {point.line}</div>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={point.question}>
+                      {point.question}
+                    </TableCell>
+                    <TableCell>
+                      {point.isRepeated ? (
+                        <Badge variant="destructive" className="flex items-center gap-1 w-fit">
+                          <RotateCcw className="h-3 w-3" /> Repeated ({point.repeatCount})
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">New</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate italic text-muted-foreground">
+                      {point.actionPlan || "No plan yet..."}
+                    </TableCell>
+                    <TableCell>{point.actionOwner || "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {point.actionStatus === "Resolved" ? (
+                          <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">
+                            <CheckCircle2 className="h-3 w-3 mr-1" /> {point.actionStatus}
+                          </Badge>
+                        ) : point.actionStatus === "In Progress" ? (
+                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
+                            <Clock className="h-3 w-3 mr-1" /> {point.actionStatus}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-slate-50">
+                            <AlertCircle className="h-3 w-3 mr-1" /> {point.actionStatus}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => handleEditOpen(point)}>
+                        <Edit className="h-4 w-4 mr-1" /> Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!failureActionPoints.length && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground italic">
+                       No failure points detected in the current scope.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Action Plan Edit Dialog */}
+      <Dialog open={!!editingPoint} onOpenChange={(open) => !open && setEditingPoint(null)}>
+        <DialogContent className="sm:max-max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5" />
+              Update Action Plan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2 p-3 bg-muted rounded-lg text-sm">
+              <div className="flex justify-between">
+                <span className="font-semibold text-muted-foreground">Machine:</span>
+                <span>{editingPoint?.machine}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold text-muted-foreground">Question:</span>
+                <span className="text-right max-w-[250px]">{editingPoint?.question}</span>
+              </div>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="actionPlan">Action Plan</Label>
+              <Textarea
+                id="actionPlan"
+                placeholder="What steps are being taken to fix this?"
+                value={editFormData.actionPlan}
+                onChange={(e) => setEditFormData({ ...editFormData, actionPlan: e.target.value })}
+                className="min-h-[100px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="actionOwner">Owner / Responsible</Label>
+                <Input
+                  id="actionOwner"
+                  placeholder="Who is tracking this?"
+                  value={editFormData.actionOwner}
+                  onChange={(e) => setEditFormData({ ...editFormData, actionOwner: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="actionDeadline">Target Deadline</Label>
+                <Input
+                  id="actionDeadline"
+                  type="date"
+                  value={editFormData.actionDeadline}
+                  onChange={(e) => setEditFormData({ ...editFormData, actionDeadline: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="actionStatus">Current Status</Label>
+              <Select 
+                value={editFormData.actionStatus} 
+                onValueChange={(val) => setEditFormData({ ...editFormData, actionStatus: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingPoint(null)}>Cancel</Button>
+            <Button onClick={handleSaveActionPlan}>Save Action Plan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Recent users */}
       <Card>
@@ -783,6 +1480,7 @@ export default function SuperAdminDashboard() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Designation</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Contact</TableHead>
                 </TableRow>
@@ -804,10 +1502,15 @@ export default function SuperAdminDashboard() {
                         {u.role}
                       </Badge>
                     </TableCell>
+                    <TableCell className="capitalize text-xs font-medium">
+                      {u.designation && u.designation !== 'none' ? u.designation : "—"}
+                    </TableCell>
                     <TableCell>
-                      {typeof u.department === "object"
-                        ? u.department?.name || "N/A"
-                        : u.department || "N/A"}
+                      {Array.isArray(u.department)
+                        ? u.department.map((d) => (typeof d === "object" ? d.name : d)).join(", ") || "N/A"
+                        : typeof u.department === "object"
+                          ? u.department?.name || "N/A"
+                          : u.department || "N/A"}
                     </TableCell>
                     <TableCell className="text-sm">
                       <div>{u.emailId}</div>
@@ -817,7 +1520,7 @@ export default function SuperAdminDashboard() {
                 ))}
                 {!recentUsers.length && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
                       No users yet
                     </TableCell>
                   </TableRow>

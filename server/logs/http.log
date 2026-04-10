@@ -6349,3 +6349,172 @@
 [25 Feb, 2026 - 19:21:02:212] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
 [25 Feb, 2026 - 19:22:53:2253] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
 [25 Feb, 2026 - 19:22:53:2253] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[26 Feb, 2026 - 10:45:50:4550] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[26 Feb, 2026 - 10:45:51:4551] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[26 Feb, 2026 - 10:45:55:4555] [34minfo[39m: [34mTarget audit reminder email sent to harshal.gangarde@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:45:59:4559] [34minfo[39m: [34mTarget audit reminder email sent to rahul.bhosale@marelli.motherson.com, jatinnagar563@gmail.com (CC: )[39m
+[26 Feb, 2026 - 10:46:02:462] [34minfo[39m: [34mTarget audit reminder email sent to shambhu.patra@int.motherson.com, jatinnagar563@gmail.com (CC: )[39m
+[26 Feb, 2026 - 10:46:03:463] [34minfo[39m: [34mTarget audit reminder email sent to shambhu.patra@int.motherson.com, jatinnagar563@gmail.com (CC: )[39m
+[26 Feb, 2026 - 10:46:05:465] [34minfo[39m: [34mTarget audit reminder email sent to shambhu.patra@int.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:06:466] [34minfo[39m: [34mTarget audit reminder email sent to shambhu.patra@int.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:08:468] [34minfo[39m: [34mTarget audit reminder email sent to ganesh.geet@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:10:4610] [34minfo[39m: [34mTarget audit reminder email sent to ganesh.geet@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:11:4611] [34minfo[39m: [34mTarget audit reminder email sent to dattaprasad.borde@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:13:4613] [34minfo[39m: [34mTarget audit reminder email sent to dattaprasad.borde@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:13:4613] [34minfo[39m: [34mTarget audit reminder email sent to dattaprasad.borde@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:14:4614] [34minfo[39m: [34mTarget audit reminder email sent to sachin.kakade@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:16:4616] [34minfo[39m: [34mTarget audit reminder email sent to sachin.kakade@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:16:4616] [34minfo[39m: [34mTarget audit reminder email sent to sachin.kakade@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:17:4617] [34minfo[39m: [34mTarget audit reminder email sent to sachin.kakade@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:19:4619] [34minfo[39m: [34mTarget audit reminder email sent to sachin.kakade@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:19:4619] [34minfo[39m: [34mTarget audit reminder email sent to sachin.kakade@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:21:4621] [34minfo[39m: [34mTarget audit reminder email sent to shashikant.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:22:4622] [34minfo[39m: [34mTarget audit reminder email sent to shashikant.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:23:4623] [34minfo[39m: [34mTarget audit reminder email sent to shashikant.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:23:4623] [34minfo[39m: [34mTarget audit reminder email sent to shashikant.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:24:4624] [34minfo[39m: [34mTarget audit reminder email sent to vishal.hule@int.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:25:4625] [34minfo[39m: [34mTarget audit reminder email sent to vishal.hule@int.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:26:4626] [34minfo[39m: [34mTarget audit reminder email sent to vishal.hule@int.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:26:4626] [34minfo[39m: [34mTarget audit reminder email sent to vishal.hule@int.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:27:4627] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:28:4628] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:29:4629] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:30:4630] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:30:4630] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:31:4631] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:32:4632] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:33:4633] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:33:4633] [34minfo[39m: [34mTarget audit reminder email sent to chandrashekhar.patil@marelli.motherson.com (CC: )[39m
+[26 Feb, 2026 - 10:46:39:4639] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[26 Feb, 2026 - 10:46:46:4646] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[26 Feb, 2026 - 10:46:46:4646] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[26 Feb, 2026 - 10:46:55:4655] [34minfo[39m: [34mEmployee logged out[39m
+[26 Feb, 2026 - 10:48:41:4841] [34minfo[39m: [34mEmployee logged out[39m
+[26 Feb, 2026 - 10:48:48:4848] [34minfo[39m: [34mEmployees fetched by Jatin (JA001)[39m
+[26 Feb, 2026 - 10:49:01:491] [34minfo[39m: [34mDepartments fetched by Jatin (JA001)[39m
+[26 Feb, 2026 - 10:49:16:4916] [34minfo[39m: [34mQuestion updated: 699fab244f7555dd8918ebfa by user 69367226e401d850a7f6b7f6[39m
+[09 Apr, 2026 - 19:39:41:3941] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[09 Apr, 2026 - 19:39:46:3946] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[09 Apr, 2026 - 19:39:49:3949] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[09 Apr, 2026 - 19:40:08:408] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:40:37:4037] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:40:47:4047] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:40:47:4047] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:41:35:4135] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:41:35:4135] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:42:56:4256] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:42:56:4256] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:43:00:430] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:43:05:435] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:44:46:4446] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:44:46:4446] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:44:51:4451] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:45:40:4540] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:45:40:4540] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:45:43:4543] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:45:43:4543] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 19:45:58:4558] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 20:08:16:816] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[09 Apr, 2026 - 20:08:42:842] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 09:58:28:5828] [33mwarn[39m: [33mMongoDB disconnected[39m
+[10 Apr, 2026 - 09:58:30:5830] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-01.knfen.mongodb.net[39m
+[10 Apr, 2026 - 09:58:45:5845] [34minfo[39m: [34mTarget audit reminder email sent to qainprocess.pune3@int.motherson.com (CC: )[39m
+[10 Apr, 2026 - 09:58:47:5847] [34minfo[39m: [34mTarget audit reminder email sent to vilas.rewate@marelli.motherson.com (CC: )[39m
+[10 Apr, 2026 - 09:58:48:5848] [34minfo[39m: [34mTarget audit reminder email sent to vilas.rewate@marelli.motherson.com (CC: )[39m
+[10 Apr, 2026 - 09:58:50:5850] [34minfo[39m: [34mTarget audit reminder email sent to sonu123@gmail.com (CC: )[39m
+[10 Apr, 2026 - 09:58:51:5851] [34minfo[39m: [34mTarget audit reminder email sent to sonu123@gmail.com (CC: )[39m
+[10 Apr, 2026 - 09:59:12:5912] [33mwarn[39m: [33mMongoDB disconnected[39m
+[10 Apr, 2026 - 09:59:17:5917] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 09:59:19:5919] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:00:48:048] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:00:54:054] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:00:56:056] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:01:01:11] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:02:55:255] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:05:32:532] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:05:33:533] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:08:00:80] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:08:06:86] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-02.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:08:18:818] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:08:20:820] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-02.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:08:59:859] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:13:04:134] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:13:17:1317] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:13:25:1325] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:16:30:1630] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:16:33:1633] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-02.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:18:40:1840] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:25:48:2548] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:25:52:2552] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:26:10:2610] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:26:15:2615] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:26:54:2654] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:27:18:2718] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:27:29:2729] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:27:32:2732] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-00.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:29:28:2928] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:30:36:3036] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:30:40:3040] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:30:52:3052] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:30:56:3056] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:32:39:3239] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:32:58:3258] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:32:58:3258] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:33:01:331] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:33:50:3350] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:35:34:3534] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:35:37:3537] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:36:10:3610] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:36:31:3631] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:38:12:3812] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:38:22:3822] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:38:43:3843] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:39:22:3922] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:39:28:3928] [34minfo[39m: [34mDepartment statistics fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:39:28:3928] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:40:33:4033] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:41:49:4149] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:41:50:4150] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:45:34:4534] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:45:47:4547] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:46:40:4640] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:54:03:543] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:54:03:543] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:54:08:548] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:54:22:5422] [34minfo[39m: [34mEmployee updated: Navneet bagal (9307251807) by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:54:39:5439] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 10:58:49:5849] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 10:58:51:5851] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 10:59:59:5959] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:00:02:02] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:00:02:02] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:00:06:06] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:00:21:021] [34minfo[39m: [34mEmployee updated: Navneet bagal (9307251807) by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:02:31:231] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 11:02:38:238] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-00.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 11:03:50:350] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:10:41:1041] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:10:42:1042] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:21:31:2131] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 11:21:34:2134] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 11:21:47:2147] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 11:21:51:2151] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 11:21:56:2156] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[10 Apr, 2026 - 11:22:00:220] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[10 Apr, 2026 - 11:24:22:2422] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:28:09:289] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:29:39:2939] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:41:36:4136] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:41:36:4136] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:41:37:4137] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:41:38:4138] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:41:56:4156] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 11:50:43:5043] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:13:43:1343] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:14:46:1446] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:14:46:1446] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:14:51:1451] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:20:22:2022] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:20:22:2022] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:20:28:2028] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:20:59:2059] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m

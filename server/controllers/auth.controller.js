@@ -38,7 +38,7 @@ export const bootstrapSuperAdmin = asyncHandler(async (req, res) => {
 });
 
 export const registerEmployee = asyncHandler(async (req, res) => {
-  const { fullName, emailId, department, employeeId, username, phoneNumber, password, role, unit } = req.body;
+  const { fullName, emailId, department, employeeId, username, phoneNumber, password, role, unit, isAdminPower, designation, category } = req.body;
 
   // Normalize role coming from client; default to 'employee' if missing
   const requestedRole = (role || "employee").toLowerCase();
@@ -48,15 +48,19 @@ export const registerEmployee = asyncHandler(async (req, res) => {
   // - Admins can only create employees
   // - Only superadmin can create admin/superadmin users
   if (creatorRole !== "superadmin" && requestedRole !== "employee") {
-    throw new ApiError(403, "Only superadmin can create admin users");
+    throw new ApiError(403, "Only superadmin can create management level users");
   }
 
-  // Normalize department: only keep it for employee users
-  const normalizedDepartment = requestedRole === "employee" && department ? department : undefined;
+  const requestedDesignation = (designation || "none").toLowerCase();
+
+  // Normalize department: keep it for employee, or designations like hod, shift incharge, team leader
+  const deptRequiredDesignations = ["hod", "shift incharge", "team leader"];
+  const isDeptRequired = requestedRole === "employee" || deptRequiredDesignations.includes(requestedDesignation);
+  const normalizedDepartment = isDeptRequired && department ? department : undefined;
 
   // Business rules for department & unit
-  if (requestedRole === "employee" && !normalizedDepartment) {
-    throw new ApiError(400, "Department is required for employee users");
+  if (isDeptRequired && !normalizedDepartment) {
+    throw new ApiError(400, `Department is required for ${requestedRole}/${requestedDesignation} users`);
   }
 
   let finalUnit = unit;
@@ -68,9 +72,9 @@ export const registerEmployee = asyncHandler(async (req, res) => {
     }
     finalUnit = req.user.unit;
   } else if (creatorRole === "superadmin") {
-    // Superadmin must specify a unit when creating admin users
-    if (requestedRole === "admin" && !unit) {
-      throw new ApiError(400, "Unit is required for admin users");
+    // Superadmin must specify a unit when creating admin or plant head users
+    if ((requestedRole === "admin" || requestedDesignation === "plant head") && !unit) {
+      throw new ApiError(400, "Unit is required for admin/plant head users");
     }
   }
 
@@ -113,7 +117,10 @@ export const registerEmployee = asyncHandler(async (req, res) => {
     phoneNumber,
     password,
     role: requestedRole,
+    designation: requestedDesignation,
     unit: finalUnit,
+    isAdminPower: !!isAdminPower,
+    category: category || "non-critical",
   });
 
   // Update department employee count
@@ -272,7 +279,7 @@ export const getSingleEmployee = asyncHandler(async (req, res) => {
 
 export const updateEmployee = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { fullName, emailId, department, phoneNumber, role } = req.body;
+  const { fullName, emailId, password, employeeId, phoneNumber, role, department, unit, designation, isAdminPower, category } = req.body;
 
   const employee = await Employee.findById(id);
   if (!employee) throw new ApiError(404, "Employee not found");
@@ -303,6 +310,10 @@ export const updateEmployee = asyncHandler(async (req, res) => {
   }
   if (phoneNumber) employee.phoneNumber = phoneNumber;
   if (isManager && role) employee.role = role;
+  if (isManager && designation) employee.designation = designation;
+  if (isManager && isAdminPower !== undefined) employee.isAdminPower = isAdminPower;
+  if (isManager && unit) employee.unit = unit;
+  if (isManager && category) employee.category = category;
 
   await employee.save();
 
@@ -463,6 +474,12 @@ export const getAllUsers = asyncHandler(async (req, res) => {
     query.role = role;
   }
 
+  // Optional designation filter
+  const designation = (req.query.designation || '').toLowerCase();
+  if (["plant head", "hod", "shift incharge", "team leader"].includes(designation)) {
+    query.designation = designation;
+  }
+
   // Add search functionality
   if (search) {
     const searchOr = [
@@ -506,11 +523,15 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
 // Superadmin/Admin: user stats (counts by role, recent users)
 export const getUserStats = asyncHandler(async (req, res) => {
-  const [total, admins, employees, superadmins, recentUsers] = await Promise.all([
+  const [total, admins, employees, superadmins, plantHeads, hods, shiftIncharges, teamLeaders, recentUsers] = await Promise.all([
     Employee.countDocuments({}),
     Employee.countDocuments({ role: 'admin' }),
     Employee.countDocuments({ role: 'employee' }),
     Employee.countDocuments({ role: 'superadmin' }),
+    Employee.countDocuments({ designation: 'plant head' }),
+    Employee.countDocuments({ designation: 'hod' }),
+    Employee.countDocuments({ designation: 'shift incharge' }),
+    Employee.countDocuments({ designation: 'team leader' }),
     Employee.find({})
       .select('-password')
       .populate('department', 'name description')
@@ -520,7 +541,7 @@ export const getUserStats = asyncHandler(async (req, res) => {
   ]);
 
   return res.status(200).json(new ApiResponse(200, {
-    total, admins, employees, superadmins, recentUsers
+    total, admins, employees, superadmins, plantHeads, hods, shiftIncharges, teamLeaders, recentUsers
   }, 'User stats fetched successfully'));
 });
 

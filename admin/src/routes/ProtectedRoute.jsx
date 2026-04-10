@@ -8,8 +8,14 @@ const ProtectedRoute = memo(({ children, allowedRoles }) => {
 
   if (loading) return <OptimizedLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  // Superadmin can access everything
-  if (user.role !== "superadmin" && !allowedRoles.includes(user.role))
+  
+  // Superadmin can access everything. 
+  // Users with isAdminPower = true get access to any route that allows 'admin' roles.
+  const hasAccess = user.role === "superadmin" || 
+                    allowedRoles.includes(user.role) || 
+                    (user.isAdminPower && allowedRoles.includes("admin"));
+
+  if (!hasAccess)
     return <Navigate to="/login" replace />;
 
   return children;

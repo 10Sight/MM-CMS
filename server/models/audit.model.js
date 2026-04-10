@@ -69,9 +69,24 @@ const AuditSchema = new mongoose.Schema(
           type: String,
           required: true,
         },
-        // Remark is primarily required when the answer is "No" (enforced at controller level).
         remark: {
           type: String,
+        },
+        actionPlan: {
+          type: String,
+          trim: true,
+        },
+        actionOwner: {
+          type: String,
+          trim: true,
+        },
+        actionDeadline: {
+          type: Date,
+        },
+        actionStatus: {
+          type: String,
+          enum: ["Pending", "In Progress", "Resolved", "N/A"],
+          default: "N/A", // Default to N/A, update to Pending if it's a failure
         },
         photos: [{
           url: {
