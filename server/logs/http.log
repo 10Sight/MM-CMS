@@ -6518,3 +6518,15 @@
 [10 Apr, 2026 - 12:20:22:2022] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
 [10 Apr, 2026 - 12:20:28:2028] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
 [10 Apr, 2026 - 12:20:59:2059] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:44:39:4439] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:44:39:4439] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:44:53:4453] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:49:12:4912] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:49:20:4920] [34minfo[39m: [34mDepartments fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:49:20:4920] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[10 Apr, 2026 - 12:49:39:4939] [34minfo[39m: [34mEmployees fetched by Super Admin (SA001)[39m
+[20 Apr, 2026 - 00:33:23:3323] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[20 Apr, 2026 - 00:33:27:3327] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-02.knfen.mongodb.net:27017/test[39m
+[20 Apr, 2026 - 00:34:17:3417] [34minfo[39m: [34mAll users fetched by Super Admin (SA001)[39m
+[20 Apr, 2026 - 00:41:19:4119] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[20 Apr, 2026 - 00:41:21:4121] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m

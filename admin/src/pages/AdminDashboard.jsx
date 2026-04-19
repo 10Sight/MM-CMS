@@ -40,7 +40,8 @@ import {
   useGetUnitsQuery, 
   useGetEmployeesQuery, 
   useGetDepartmentsQuery,
-  useUpdateAuditActionPlanMutation
+  useUpdateAuditActionPlanMutation,
+  useGetDashboardMetricsQuery
 } from "@/store/api";
 import { useAuth } from "../context/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,6 +106,17 @@ export default function AdminDashboard() {
   const PIE_COLORS = [
     CHART_COLORS.success,   // Pass
     CHART_COLORS.error,     // Fail
+  ];
+
+  const PREMIUM_COLORS = [
+    '#2563EB', // Blue
+    '#F97316', // Orange
+    '#10B981', // Emerald
+    '#8B5CF6', // Violet
+    '#EC4899', // Pink
+    '#F59E0B', // Amber
+    '#06B6D4', // Cyan
+    '#84CC16', // Lime
   ];
 
   const normalizeAnswer = (value) => {
@@ -203,6 +215,15 @@ export default function AdminDashboard() {
     setDepartments(deptInUnit);
     setEmployees(Array.isArray(employeesRes?.data?.employees) ? employeesRes.data.employees : []);
   }, [auditsRes, linesRes, machinesRes, employeesRes, unitsRes, departmentsRes, userUnitId, effectiveUnitId, role]);
+
+  // Fetch Advanced Metrics for Charts
+  const { data: metricsRes, isLoading: metricsLoading } = useGetDashboardMetricsQuery({
+    unit: effectiveUnitId !== 'all' ? effectiveUnitId : undefined,
+    department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
+    // We can pass current year range or let backend handle default
+  });
+
+  const dashboardMetrics = metricsRes?.data || [];
   // RTK Query polling handles refresh; no manual interval needed
 
 
@@ -1092,49 +1113,154 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Target vs Actual audits (per current filters) */}
+      {/* Advanced Analytical Charts (LPA Audit Visuals) */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Chart 1: No of LPA Audit Target vs Actual */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">No of LPA Audit Target vs Actual</CardTitle>
+            <CardDescription>Monthly comparison of planned vs completed audits</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardMetrics}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36}/>
+                  <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={25} />
+                  <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={25} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chart 2: Layer wise Audit nos. of plan vs actual */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Layer wise Audit nos. of plan vs actual</CardTitle>
+            <CardDescription>Performance by designation levels</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={dashboardMetrics.length > 0 ? (
+                    ["Plant Head", "HOD", "Shift Incharge", "Team Leader"].map(layer => {
+                      const latest = dashboardMetrics[dashboardMetrics.length - 1]; // Show latest month breakdown
+                      return {
+                        name: layer,
+                        Plan: latest?.layers?.[layer]?.plan || 0,
+                        Actual: latest?.layers?.[layer]?.actual || 0
+                      };
+                    })
+                  ) : []}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
+                  <Legend verticalAlign="bottom" height={36}/>
+                  <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chart 3: Failure % Month wise */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Failure % Month wise</CardTitle>
+            <CardDescription>Trend of audit failure rates over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardMetrics.map(m => ({
+                  ...m,
+                  failureRate: m.actual > 0 ? Math.round((m.failed / m.actual) * 100) : 0
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(val) => `${val}%`} />
+                  <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Chart 4: Layer Performance Contribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Layer-wise Failure Distribution</CardTitle>
+            <CardDescription>Monthly failures stacked by designation</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboardMetrics.map(m => ({
+                  month: m.month,
+                  "Plant Head": m.layers?.["Plant Head"]?.actual || 0,
+                  "HOD": m.layers?.["HOD"]?.actual || 0,
+                  "Shift Incharge": m.layers?.["Shift Incharge"]?.actual || 0,
+                  "Team Leader": m.layers?.["Team Leader"]?.actual || 0,
+                }))}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="Plant Head" stackId="a" fill="#eab308" />
+                  <Bar dataKey="HOD" stackId="a" fill="#f97316" />
+                  <Bar dataKey="Shift Incharge" stackId="a" fill="#10b981" />
+                  <Bar dataKey="Team Leader" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Full-width Chart 5: Process wise failures trend */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Target vs Actual Audits
-          </CardTitle>
+          <CardTitle className="text-base font-semibold">Process wise failures trend</CardTitle>
+          <CardDescription>Failures grouped by question templates (CAPA, 5S, etc.)</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-80">
+          <div className="h-96">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={targetActualData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--muted))"
-                  opacity={0.3}
-                />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 12 }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 12 }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                />
-                <Tooltip
-                  formatter={(value, name) => [`${value} audits`, name]}
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px hsl(var(--foreground) / 0.15)'
-                  }}
-                />
+              <BarChart data={dashboardMetrics}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip />
                 <Legend />
-                <Bar
-                  dataKey="value"
-                  name="Audits"
-                  fill={CHART_COLORS.primary}
-                  radius={[4, 4, 0, 0]}
-                />
+                {(() => {
+                  const allProcesses = new Set();
+                  dashboardMetrics.forEach(m => {
+                    Object.keys(m.processes || {}).forEach(p => allProcesses.add(p));
+                  });
+                  return Array.from(allProcesses).map((proc, idx) => (
+                    <Bar 
+                      key={proc} 
+                      dataKey={`processes.${proc}`} 
+                      name={proc} 
+                      stackId="p" 
+                      fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]} 
+                    />
+                  ));
+                })()}
               </BarChart>
             </ResponsiveContainer>
           </div>

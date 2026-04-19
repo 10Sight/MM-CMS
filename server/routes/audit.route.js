@@ -12,6 +12,7 @@ import {
   getAuditFormSettings,
   updateAuditFormSettings,
   updateAuditActionPlan,
+  getDashboardMetrics,
 } from "../controllers/audit.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 import { cache, cacheConfig } from "../middlewares/cache.middleware.js";
@@ -21,6 +22,7 @@ const router = express.Router();
 
 router.get("/", verifyJWT, authorizeRoles("admin", "employee", "superadmin"), cache(cacheConfig.short), getAudits);
 router.get("/export", verifyJWT, authorizeRoles("admin", "manager", "superadmin"), exportAudits);
+router.get("/metrics", verifyJWT, authorizeRoles("admin", "superadmin"), cache(cacheConfig.short), getDashboardMetrics);
 // Auditor submits audit (with photo upload support)
 router.post("/", verifyJWT, authorizeRoles("employee", "manager", "admin"), uploadFields, createAudit);
 

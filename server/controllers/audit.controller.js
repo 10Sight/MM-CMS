@@ -8,6 +8,9 @@ import {asyncHandler} from "../utils/asyncHandler.js";
 import { invalidateCache } from "../middlewares/cache.middleware.js";
 import sendMail from "../utils/mail.util.js";
 import EVN from "../config/env.config.js";
+import mongoose from "mongoose";
+import Employee from "../models/auth.model.js";
+import Question from "../models/question.model.js";
 
 // Normalize a comma-separated email string into a clean list
 const normalizeEmailList = (raw) => {
@@ -1126,4 +1129,177 @@ export const updateAuditActionPlan = asyncHandler(async (req, res) => {
   await invalidateCache('/api/audits');
 
   return res.json(new ApiResponse(200, audit, "Action plan updated successfully"));
+});
+
+// Helper to calculate working days (Mon-Sat) between two dates
+const getWorkingDays = (startDate, endDate) => {
+  let count = 0;
+  let curDate = new Date(startDate);
+  const end = new Date(endDate);
+  while (curDate <= end) {
+    const dayOfWeek = curDate.getDay();
+    if (dayOfWeek !== 0) { // 0 is Sunday
+      count++;
+    }
+    curDate.setDate(curDate.getDate() + 1);
+  }
+  return count;
+};
+
+export const getDashboardMetrics = asyncHandler(async (req, res) => {
+  const { unit, department, startDate, endDate } = req.query;
+  
+  const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1); // Default to start of year
+  const end = endDate ? new Date(endDate) : new Date();
+
+  // 1. Fetch Audits in range
+  const auditQuery = {
+    $or: [
+      { date: { $gte: start, $lte: end } },
+      { createdAt: { $gte: start, $lte: end } }
+    ]
+  };
+  if (unit) auditQuery.unit = unit;
+  if (department) auditQuery.department = department;
+
+  const audits = await Audit.find(auditQuery)
+    .populate("auditor", "designation role")
+    .populate({ path: "answers.question", select: "templateTitle" })
+    .lean();
+
+  // 2. Fetch Employees (Auditors) to calculate targets
+  const employeeQuery = {};
+  if (unit) employeeQuery.unit = unit;
+  if (department) employeeQuery.department = { $in: [department] };
+  
+  const employees = await Employee.find(employeeQuery).lean();
+
+  // 3. Aggregate data by month
+  const monthlyData = {}; // Key: "Jan.26"
+  
+  // Initialize months in range
+  let iterDate = new Date(start);
+  while (iterDate <= end) {
+    const monthKey = iterDate.toLocaleString('en-US', { month: 'short' }) + "." + iterDate.getFullYear().toString().slice(-2);
+    if (!monthlyData[monthKey]) {
+      monthlyData[monthKey] = {
+        month: monthKey,
+        target: 0,
+        actual: 0,
+        failed: 0,
+        layers: {
+          "Plant Head": { plan: 0, actual: 0 },
+          "HOD": { plan: 0, actual: 0 },
+          "Shift Incharge": { plan: 0, actual: 0 },
+          "Team Leader": { plan: 0, actual: 0 }
+        },
+        processes: {} // Key: templateTitle, Value: failCount
+      };
+    }
+    // Move to next month
+    iterDate.setMonth(iterDate.getMonth() + 1);
+  }
+
+  // Calculate targets dynamically
+  employees.forEach(emp => {
+    if (!emp.targetAudit || !emp.targetAudit.total) return;
+    
+    const targetStart = emp.targetAudit.startDate ? new Date(emp.targetAudit.startDate) : start;
+    const targetEnd = emp.targetAudit.endDate ? new Date(emp.targetAudit.endDate) : end;
+    
+    const effectiveStart = new Date(Math.max(start, targetStart));
+    const effectiveEnd = new Date(Math.min(end, targetEnd));
+    
+    if (effectiveStart > effectiveEnd) return;
+
+    const totalWorkingDays = getWorkingDays(targetStart, targetEnd);
+    if (totalWorkingDays === 0) return;
+
+    const targetPerDay = emp.targetAudit.total / totalWorkingDays;
+    
+    // Designation mapping
+    const desig = (emp.designation || "").toLowerCase();
+    let layerKey = null;
+    if (desig === "plant head") layerKey = "Plant Head";
+    else if (desig === "hod") layerKey = "HOD";
+    else if (desig === "shift incharge") layerKey = "Shift Incharge";
+    else if (desig === "team leader") layerKey = "Team Leader";
+
+    // Distribute target per month
+    let d = new Date(effectiveStart);
+    while (d <= effectiveEnd) {
+      const mKey = d.toLocaleString('en-US', { month: 'short' }) + "." + d.getFullYear().toString().slice(-2);
+      if (monthlyData[mKey]) {
+        // Count working days in this specific month within the target range
+        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        const actualMonthStart = new Date(Math.max(monthStart, effectiveStart));
+        const actualMonthEnd = new Date(Math.min(monthEnd, effectiveEnd));
+        
+        const workingDaysInMonth = getWorkingDays(actualMonthStart, actualMonthEnd);
+        const monthTarget = workingDaysInMonth * targetPerDay;
+        
+        monthlyData[mKey].target += monthTarget;
+        if (layerKey) {
+          monthlyData[mKey].layers[layerKey].plan += monthTarget;
+        }
+      }
+      d.setMonth(d.getMonth() + 1);
+      d.setDate(1);
+    }
+  });
+
+  // Count actuals and failures
+  audits.forEach(audit => {
+    const d = audit.date || audit.createdAt;
+    const mKey = new Date(d).toLocaleString('en-US', { month: 'short' }) + "." + new Date(d).getFullYear().toString().slice(-2);
+    
+    if (monthlyData[mKey]) {
+      monthlyData[mKey].actual++;
+      
+      const desig = (audit.auditor?.designation || audit.createdBy?.designation || "").toLowerCase();
+      let layerKey = null;
+      if (desig === "plant head") layerKey = "Plant Head";
+      else if (desig === "hod") layerKey = "HOD";
+      else if (desig === "shift incharge") layerKey = "Shift Incharge";
+      else if (desig === "team leader") layerKey = "Team Leader";
+
+      if (layerKey) {
+        monthlyData[mKey].layers[layerKey].actual++;
+      }
+
+      // Check for failures
+      let isAuditFailed = false;
+      if (audit.answers) {
+        audit.answers.forEach(ans => {
+          const val = (ans.answer || "").toString().toLowerCase();
+          if (val === "no" || val === "fail") {
+            isAuditFailed = true;
+            const procName = ans.question?.templateTitle || "General";
+            monthlyData[mKey].processes[procName] = (monthlyData[mKey].processes[procName] || 0) + 1;
+          }
+        });
+      }
+      if (isAuditFailed) {
+        monthlyData[mKey].failed++;
+      }
+    }
+  });
+
+  // Final formatting
+  const result = Object.values(monthlyData).sort((a, b) => {
+    const [am, ay] = a.month.split(".");
+    const [bm, by] = b.month.split(".");
+    return new Date(`${am} 20${ay}`) - new Date(`${bm} 20${by}`);
+  });
+
+  // Round targets to 1 decimal place
+  result.forEach(m => {
+    m.target = Math.round(m.target * 10) / 10;
+    Object.keys(m.layers).forEach(l => {
+      m.layers[l].plan = Math.round(m.layers[l].plan * 10) / 10;
+    });
+  });
+
+  return res.json(new ApiResponse(200, result, "Dashboard metrics fetched successfully"));
 });
