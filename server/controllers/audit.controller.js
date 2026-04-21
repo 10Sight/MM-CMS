@@ -561,6 +561,10 @@ export const exportAudits = asyncHandler(async (req, res) => {
 export const getAuditById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new ApiError(400, "Invalid audit ID format");
+  }
+
   const audit = await Audit.findById(id)
     .populate("line", "name")
     .populate("machine", "name")
@@ -1149,157 +1153,254 @@ const getWorkingDays = (startDate, endDate) => {
 export const getDashboardMetrics = asyncHandler(async (req, res) => {
   const { unit, department, startDate, endDate } = req.query;
   
-  const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1); // Default to start of year
+  const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
   const end = endDate ? new Date(endDate) : new Date();
 
-  // 1. Fetch Audits in range
-  const auditQuery = {
+  // 1. Optimized Audit Aggregation
+  const matchQuery = {
     $or: [
       { date: { $gte: start, $lte: end } },
       { createdAt: { $gte: start, $lte: end } }
     ]
   };
-  if (unit) auditQuery.unit = unit;
-  if (department) auditQuery.department = department;
+  if (unit) matchQuery.unit = new mongoose.Types.ObjectId(unit);
+  if (department) matchQuery.department = new mongoose.Types.ObjectId(department);
 
-  const audits = await Audit.find(auditQuery)
-    .populate("auditor", "designation role")
-    .populate({ path: "answers.question", select: "templateTitle" })
-    .lean();
+  const auditStats = await Audit.aggregate([
+    { $match: matchQuery },
+    // Join with auditor to get designation
+    {
+      $lookup: {
+        from: "employees",
+        localField: "auditor",
+        foreignField: "_id",
+        as: "auditorData"
+      }
+    },
+    { $unwind: { path: "$auditorData", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        month: { $month: "$date" },
+        year: { $year: "$date" },
+        designation: { $toLower: { $ifNull: ["$auditorData.designation", ""] } },
+        answers: 1
+      }
+    },
+    {
+      $group: {
+        _id: { month: "$month", year: "$year" },
+        actual: { $sum: 1 },
+        failed: {
+          $sum: {
+            $cond: [
+              {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: "$answers",
+                        as: "ans",
+                        cond: {
+                          $or: [
+                            { $eq: [{ $toLower: "$$ans.answer" }, "no"] },
+                            { $eq: [{ $toLower: "$$ans.answer" }, "fail"] }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  0
+                ]
+              },
+              1,
+              0
+            ]
+          }
+        },
+        // Group by designation for layer stats
+        plantHeadActual: { $sum: { $cond: [{ $eq: ["$designation", "plant head"] }, 1, 0] } },
+        hodActual: { $sum: { $cond: [{ $eq: ["$designation", "hod"] }, 1, 0] } },
+        shiftInchargeActual: { $sum: { $cond: [{ $eq: ["$designation", "shift incharge"] }, 1, 0] } },
+        teamLeaderActual: { $sum: { $cond: [{ $eq: ["$designation", "team leader"] }, 1, 0] } }
+      }
+    }
+  ]);
 
-  // 2. Fetch Employees (Auditors) to calculate targets
+  // 2. Fetch Employees for dynamic targets (usually a small set, so JS logic is fine)
   const employeeQuery = {};
   if (unit) employeeQuery.unit = unit;
   if (department) employeeQuery.department = { $in: [department] };
-  
   const employees = await Employee.find(employeeQuery).lean();
 
-  // 3. Aggregate data by month
-  const monthlyData = {}; // Key: "Jan.26"
-  
-  // Initialize months in range
+  // 3. Initialize & Populate Monthly Data
+  const monthlyData = {};
   let iterDate = new Date(start);
   while (iterDate <= end) {
     const monthKey = iterDate.toLocaleString('en-US', { month: 'short' }) + "." + iterDate.getFullYear().toString().slice(-2);
-    if (!monthlyData[monthKey]) {
-      monthlyData[monthKey] = {
-        month: monthKey,
-        target: 0,
-        actual: 0,
-        failed: 0,
-        layers: {
-          "Plant Head": { plan: 0, actual: 0 },
-          "HOD": { plan: 0, actual: 0 },
-          "Shift Incharge": { plan: 0, actual: 0 },
-          "Team Leader": { plan: 0, actual: 0 }
-        },
-        processes: {} // Key: templateTitle, Value: failCount
-      };
-    }
-    // Move to next month
+    monthlyData[monthKey] = {
+      month: monthKey,
+      target: 0,
+      actual: 0,
+      failed: 0,
+      layers: {
+        "Plant Head": { plan: 0, actual: 0 },
+        "HOD": { plan: 0, actual: 0 },
+        "Shift Incharge": { plan: 0, actual: 0 },
+        "Team Leader": { plan: 0, actual: 0 }
+      },
+      processes: {}
+    };
     iterDate.setMonth(iterDate.getMonth() + 1);
   }
 
-  // Calculate targets dynamically
+  // Map aggregation results back to monthly structure
+  const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  auditStats.forEach(stat => {
+    const mKey = `${monthNames[stat._id.month]}.${String(stat._id.year).slice(-2)}`;
+    if (monthlyData[mKey]) {
+      monthlyData[mKey].actual = stat.actual;
+      monthlyData[mKey].failed = stat.failed;
+      monthlyData[mKey].layers["Plant Head"].actual = stat.plantHeadActual;
+      monthlyData[mKey].layers["HOD"].actual = stat.hodActual;
+      monthlyData[mKey].layers["Shift Incharge"].actual = stat.shiftInchargeActual;
+      monthlyData[mKey].layers["Team Leader"].actual = stat.teamLeaderActual;
+    }
+  });
+
+  // Dynamic target calculation logic (unchanged for accuracy)
   employees.forEach(emp => {
     if (!emp.targetAudit || !emp.targetAudit.total) return;
-    
     const targetStart = emp.targetAudit.startDate ? new Date(emp.targetAudit.startDate) : start;
     const targetEnd = emp.targetAudit.endDate ? new Date(emp.targetAudit.endDate) : end;
-    
     const effectiveStart = new Date(Math.max(start, targetStart));
     const effectiveEnd = new Date(Math.min(end, targetEnd));
-    
     if (effectiveStart > effectiveEnd) return;
 
     const totalWorkingDays = getWorkingDays(targetStart, targetEnd);
     if (totalWorkingDays === 0) return;
-
     const targetPerDay = emp.targetAudit.total / totalWorkingDays;
     
-    // Designation mapping
     const desig = (emp.designation || "").toLowerCase();
-    let layerKey = null;
-    if (desig === "plant head") layerKey = "Plant Head";
-    else if (desig === "hod") layerKey = "HOD";
-    else if (desig === "shift incharge") layerKey = "Shift Incharge";
-    else if (desig === "team leader") layerKey = "Team Leader";
+    const layerKeys = { "plant head": "Plant Head", "hod": "HOD", "shift incharge": "Shift Incharge", "team leader": "Team Leader" };
+    const layerKey = layerKeys[desig];
 
-    // Distribute target per month
     let d = new Date(effectiveStart);
     while (d <= effectiveEnd) {
       const mKey = d.toLocaleString('en-US', { month: 'short' }) + "." + d.getFullYear().toString().slice(-2);
       if (monthlyData[mKey]) {
-        // Count working days in this specific month within the target range
         const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
         const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
         const actualMonthStart = new Date(Math.max(monthStart, effectiveStart));
         const actualMonthEnd = new Date(Math.min(monthEnd, effectiveEnd));
-        
         const workingDaysInMonth = getWorkingDays(actualMonthStart, actualMonthEnd);
         const monthTarget = workingDaysInMonth * targetPerDay;
         
         monthlyData[mKey].target += monthTarget;
-        if (layerKey) {
-          monthlyData[mKey].layers[layerKey].plan += monthTarget;
-        }
+        if (layerKey) monthlyData[mKey].layers[layerKey].plan += monthTarget;
       }
       d.setMonth(d.getMonth() + 1);
       d.setDate(1);
     }
   });
 
-  // Count actuals and failures
-  audits.forEach(audit => {
-    const d = audit.date || audit.createdAt;
-    const mKey = new Date(d).toLocaleString('en-US', { month: 'short' }) + "." + new Date(d).getFullYear().toString().slice(-2);
-    
-    if (monthlyData[mKey]) {
-      monthlyData[mKey].actual++;
-      
-      const desig = (audit.auditor?.designation || audit.createdBy?.designation || "").toLowerCase();
-      let layerKey = null;
-      if (desig === "plant head") layerKey = "Plant Head";
-      else if (desig === "hod") layerKey = "HOD";
-      else if (desig === "shift incharge") layerKey = "Shift Incharge";
-      else if (desig === "team leader") layerKey = "Team Leader";
-
-      if (layerKey) {
-        monthlyData[mKey].layers[layerKey].actual++;
-      }
-
-      // Check for failures
-      let isAuditFailed = false;
-      if (audit.answers) {
-        audit.answers.forEach(ans => {
-          const val = (ans.answer || "").toString().toLowerCase();
-          if (val === "no" || val === "fail") {
-            isAuditFailed = true;
-            const procName = ans.question?.templateTitle || "General";
-            monthlyData[mKey].processes[procName] = (monthlyData[mKey].processes[procName] || 0) + 1;
-          }
-        });
-      }
-      if (isAuditFailed) {
-        monthlyData[mKey].failed++;
-      }
-    }
-  });
-
-  // Final formatting
   const result = Object.values(monthlyData).sort((a, b) => {
-    const [am, ay] = a.month.split(".");
-    const [bm, by] = b.month.split(".");
+    const [am, ay] = a.month.split("."); const [bm, by] = b.month.split(".");
     return new Date(`${am} 20${ay}`) - new Date(`${bm} 20${by}`);
   });
 
-  // Round targets to 1 decimal place
   result.forEach(m => {
     m.target = Math.round(m.target * 10) / 10;
-    Object.keys(m.layers).forEach(l => {
-      m.layers[l].plan = Math.round(m.layers[l].plan * 10) / 10;
-    });
+    Object.keys(m.layers).forEach(l => m.layers[l].plan = Math.round(m.layers[l].plan * 10) / 10);
   });
 
   return res.json(new ApiResponse(200, result, "Dashboard metrics fetched successfully"));
+});
+
+/**
+ * Fetch all failure points (Answer: "No" or "Fail") across audits with filtering
+ * Includes repeat frequency calculation for "Repeated Fail Point" logic.
+ */
+export const getAuditFailures = asyncHandler(async (req, res) => {
+  const { unit, department, line, machine, startDate, endDate, status } = req.query;
+
+  const query = {};
+  if (unit) query.unit = unit;
+  if (department) query.department = department;
+  if (line) query.line = line;
+  if (machine) query.machine = machine;
+
+  // Date range filter
+  if (startDate || endDate) {
+    query.date = {};
+    if (startDate) query.date.$gte = new Date(startDate);
+    if (endDate) query.date.$lte = new Date(endDate);
+  }
+
+  const audits = await Audit.find(query)
+    .populate("unit")
+    .populate("department")
+    .populate("line")
+    .populate("machine")
+    .populate("process")
+    .populate("auditor", "fullName designation category")
+    .populate("answers.question", "questionText templateTitle")
+    .sort({ date: -1 })
+    .lean();
+
+  const allFailures = [];
+  const repeatCounts = {}; // Key: "machineId-questionId"
+
+  // First pass: identify all failures throughout history (or current set) to count repeats
+  audits.forEach(audit => {
+    if (!audit.answers) return;
+    audit.answers.forEach(ans => {
+      const val = (ans.answer || "").toString().toLowerCase();
+      if (val === "no" || val === "fail") {
+        const mId = audit.machine?._id || audit.machine || audit.process?._id || audit.process || audit.line?._id || audit.line || "unknown";
+        const qId = ans.question?._id || ans.question || "unknown";
+        const key = `${mId}-${qId}`;
+        repeatCounts[key] = (repeatCounts[key] || 0) + 1;
+        
+        allFailures.push({
+          auditId: audit._id,
+          answerId: ans._id,
+          date: audit.date,
+          // Use populated names with robust fallbacks
+          unit: audit.unit?.name || (typeof audit.unit === 'string' ? audit.unit : "N/A"),
+          department: audit.department?.name || (typeof audit.department === 'string' ? audit.department : "N/A"),
+          line: audit.line?.name || (typeof audit.line === 'string' ? audit.line : "N/A"),
+          // For machine/process, fallback to line name if both are missing
+          machine: audit.machine?.name || audit.process?.name || audit.line?.name || audit.department?.name || "N/A",
+          machineId: mId,
+          auditor: audit.auditor?.fullName || "N/A",
+          auditorCategory: audit.auditor?.category || "non-critical",
+          question: ans.question?.questionText || "Unknown",
+          questionId: qId,
+          template: ans.question?.templateTitle || "General",
+          answer: ans.answer,
+          remark: ans.remark,
+          photos: ans.photos,
+          actionPlan: ans.actionPlan,
+          actionOwner: ans.actionOwner,
+          actionDeadline: ans.actionDeadline,
+          actionStatus: ans.actionStatus || "Pending",
+          repeatKey: key
+        });
+      }
+    });
+  });
+
+  // Second pass: Filter by action status if requested and attach repeat information
+  let filteredFailures = allFailures;
+  if (status && status !== "all") {
+    filteredFailures = allFailures.filter(f => f.actionStatus === status);
+  }
+
+  const result = filteredFailures.map(f => ({
+    ...f,
+    isRepeated: repeatCounts[f.repeatKey] > 1,
+    repeatCount: repeatCounts[f.repeatKey]
+  }));
+
+  return res.json(new ApiResponse(200, result, "Audit failures fetched successfully"));
 });

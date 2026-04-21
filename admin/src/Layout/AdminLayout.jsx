@@ -20,7 +20,8 @@ import {
   UsbIcon,
   User2Icon,
   CircleUserIcon,
-  Download
+  Download,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useInstallPrompt } from "@/context/InstallContext";
@@ -78,6 +79,7 @@ export default function AdminLayout() {
     { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/admin/employees", label: "Auditors", icon: Users },
     { to: "/admin/audits", label: "Audits", icon: ClipboardCheck },
+    { to: "/admin/failures", label: "Failure Tracking", icon: AlertTriangle },
     { to: "/admin/questions", label: "Questions", icon: HelpCircle },
     { to: "/admin/departments", label: "Departments", icon: Building2 },
     { to: "/admin/form-settings", label: "Form Settings", icon: Layers },

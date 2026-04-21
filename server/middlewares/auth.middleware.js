@@ -32,7 +32,11 @@ const authorizeRoles = (...roles) => {
     // Superadmin has access to all routes
     if (req.user?.role === "superadmin") return next();
 
-    if (!roles.includes(req.user.role)) {
+    // Check if user has specified role OR if they have admin power and 'admin' is allowed
+    const hasRole = roles.includes(req.user.role);
+    const hasAdminPower = req.user.isAdminPower && roles.includes("admin");
+
+    if (!hasRole && !hasAdminPower) {
       throw new ApiError(403, "You do not have permission to perform this action");
     }
     next();

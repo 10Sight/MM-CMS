@@ -225,6 +225,16 @@ export const api = createApi({
       }),
       providesTags: [{ type: 'Audit', id: 'METRICS' }],
     }),
+    getAuditFailures: builder.query({
+      query: (params) => ({
+        url: '/api/audits/failures',
+        params,
+      }),
+      providesTags: (result) => 
+        result?.data
+          ? [...result.data.map(({ auditId }) => ({ type: 'Audit', id: auditId })), { type: 'Audit', id: 'FAILURES' }]
+          : [{ type: 'Audit', id: 'FAILURES' }],
+    }),
     getAuditById: builder.query({
       query: (id) => `/api/audits/${id}`,
       providesTags: (result, error, id) => [{ type: 'Audit', id }],
@@ -380,6 +390,7 @@ export const {
   useDeleteAuditMutation,
   useUpdateAuditActionPlanMutation,
   useGetDashboardMetricsQuery,
+  useGetAuditFailuresQuery,
   useGetDepartmentsQuery,
   useGetDepartmentByIdQuery,
   useGetDepartmentStatsQuery,

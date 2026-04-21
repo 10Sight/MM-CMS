@@ -12,6 +12,7 @@ import {
   User as UserIcon,
   UsbIcon,
   Download,
+  AlertTriangle,
 } from "lucide-react";
 import { useInstallPrompt } from "@/context/InstallContext";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export default function SuperAdminLayout() {
     { to: "/superadmin/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/superadmin/users", label: "Users", icon: Users },
     { to: "/superadmin/units", label: "Units", icon: UsbIcon },
+    { to: "/superadmin/failures", label: "Failure Tracking", icon: AlertTriangle },
     { to: "/admin/dashboard", label: "Admin", icon: ShieldCheck },
     { to: "/employee/dashboard", label: "Auditor", icon: Settings },
   ];

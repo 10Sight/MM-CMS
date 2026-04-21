@@ -41,7 +41,8 @@ import {
   useGetEmployeesQuery, 
   useGetDepartmentsQuery,
   useUpdateAuditActionPlanMutation,
-  useGetDashboardMetricsQuery
+  useGetDashboardMetricsQuery,
+  useGetAuditFailuresQuery
 } from "@/store/api";
 import { useAuth } from "../context/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -158,18 +159,25 @@ export default function AdminDashboard() {
   };
 
   // Fetch data with RTK Query (poll audits every 30s)
-  const { data: auditsRes } = useGetAuditsQuery(
+  const { data: auditsRes, isLoading: auditsLoading } = useGetAuditsQuery(
     {
       page: 1,
-      limit: 1000,
+      limit: 20, // Reduced from 1000 for better performance
       department: selectedDepartment !== "all" ? selectedDepartment : undefined,
       unit: effectiveUnitId,
       line: selectedLine !== 'all' ? selectedLine : undefined,
       machine: selectedMachine !== 'all' ? selectedMachine : undefined,
       category: selectedCategory !== "all" ? selectedCategory : undefined,
     },
-    { pollingInterval: 30000 }
+    { pollingInterval: 60000 }
   );
+
+  // Optimized Failure Data Fetch for Admin
+  const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
+    unit: effectiveUnitId,
+    department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
+    status: 'Pending'
+  });
   const { data: linesRes } = useGetLinesQuery();
   const { data: machinesRes } = useGetMachinesQuery();
   const { data: unitsRes } = useGetUnitsQuery();
@@ -517,51 +525,11 @@ export default function AdminDashboard() {
       .slice(0, 10);
   }, [audits]);
 
-  // --- NEW: Failure & Repeated Fail Point Action Plan Logic ---
+  // Using specialized API result instead of heavy frontend calculation
   const failureActionPoints = useMemo(() => {
-    if (!Array.isArray(audits)) return [];
-
-    const failures = [];
-    const failCounts = {}; 
-
-    audits.forEach((audit) => {
-      if (!Array.isArray(audit.answers)) return;
-      audit.answers.forEach((ans) => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (normalized === "Fail") {
-          const mId = audit.machine?._id || audit.machine || "unknown";
-          const qId = ans.question?._id || ans.question || "unknown";
-          const key = `${mId}-${qId}`;
-          failCounts[key] = (failCounts[key] || 0) + 1;
-
-          failures.push({
-            auditId: audit._id,
-            answerId: ans._id,
-            date: audit.date || audit.createdAt,
-            machine: audit.machine?.name || audit.line?.name || audit.department?.name || "N/A",
-            line: audit.line?.name || "N/A",
-            department: audit.department?.name || "N/A",
-            question: ans.question?.questionText || "Unknown Point",
-            key,
-            actionPlan: ans.actionPlan || "",
-            actionOwner: ans.actionOwner || "",
-            actionDeadline: ans.actionDeadline || "",
-            actionStatus: ans.actionStatus || "Pending",
-          });
-        }
-      });
-    });
-
-    return failures.map((f, index) => {
-      const isRepeated = failCounts[f.key] > 1;
-      let effectivePlan = f.actionPlan;
-      if (!effectivePlan && isRepeated) {
-        const previousFailure = failures.slice(index + 1).find(pf => pf.key === f.key && pf.actionPlan);
-        if (previousFailure) effectivePlan = previousFailure.actionPlan;
-      }
-      return { ...f, isRepeated, repeatCount: failCounts[f.key], actionPlan: effectivePlan };
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [audits]);
+    const list = failuresRes?.data || [];
+    return list.slice(0, 10);
+  }, [failuresRes]);
 
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
   const [editingPoint, setEditingPoint] = useState(null);
@@ -591,6 +559,7 @@ export default function AdminDashboard() {
         ...editFormData,
       }).unwrap();
       setEditingPoint(null);
+      refetchFailures();
     } catch (err) {
       console.error("Failed to save action plan:", err);
     }

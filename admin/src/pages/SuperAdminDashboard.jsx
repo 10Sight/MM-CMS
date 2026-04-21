@@ -13,6 +13,7 @@ import {
   useGetMachinesQuery,
   useUpdateAuditActionPlanMutation,
   useGetDashboardMetricsQuery,
+  useGetAuditFailuresQuery,
 } from "@/store/api";
 import { useNavigate } from "react-router-dom";
 import {
@@ -33,6 +34,7 @@ import {
   AlertTriangle,
   RotateCcw,
   Download,
+  ArrowRight,
 } from "lucide-react";
 import * as XLSX from 'xlsx';
 import {
@@ -160,10 +162,10 @@ export default function SuperAdminDashboard() {
   const machines = machinesRes?.data || [];
 
   // Fetch audits for analytics (superadmin can view all units)
-  const { data: auditsRes } = useGetAuditsQuery(
+  const { data: auditsRes, isLoading: auditsLoading } = useGetAuditsQuery(
     {
       page: 1,
-      limit: 1000,
+      limit: 20, // Reduced from 1000 for better performance
       unit: selectedUnit !== "all" ? selectedUnit : undefined,
       department: selectedDepartment !== "all" ? selectedDepartment : undefined,
       designation: selectedDesignation !== "all" ? selectedDesignation : undefined,
@@ -171,8 +173,15 @@ export default function SuperAdminDashboard() {
       machine: selectedMachine !== "all" ? selectedMachine : undefined,
       category: selectedCategory !== "all" ? selectedCategory : undefined,
     },
-    { pollingInterval: 30000 }
+    { pollingInterval: 60000 }
   );
+
+  // Optimized Failure Data Fetch
+  const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
+    unit: selectedUnit !== 'all' ? selectedUnit : undefined,
+    department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
+    status: 'Pending'
+  });
 
   const [audits, setAudits] = useState([]);
 
@@ -490,63 +499,11 @@ export default function SuperAdminDashboard() {
       .slice(0, 10);
   }, [audits]);
 
-  // --- NEW: Failure & Repeated Fail Point Action Plan Logic ---
+  // Using specialized API result instead of heavy frontend calculation
   const failureActionPoints = useMemo(() => {
-    if (!Array.isArray(audits)) return [];
-
-    const failures = [];
-    const failCounts = {}; // Key: "machineId-questionId", Value: Count
-
-    // First pass: Identify all failures and count unique (machine + question) occurrences
-    audits.forEach((audit) => {
-      if (!Array.isArray(audit.answers)) return;
-
-      audit.answers.forEach((ans) => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (normalized === "Fail") {
-          const mId = audit.machine?._id || audit.machine || "unknown";
-          const qId = ans.question?._id || ans.question || "unknown";
-          const key = `${mId}-${qId}`;
-          failCounts[key] = (failCounts[key] || 0) + 1;
-
-          failures.push({
-            auditId: audit._id,
-            answerId: ans._id,
-            date: audit.date || audit.createdAt,
-            machine: audit.machine?.name || audit.line?.name || audit.department?.name || "N/A",
-            machineId: audit.machine?._id || audit.machine || "unknown",
-            line: audit.line?.name || "N/A",
-            department: audit.department?.name || "N/A",
-            question: ans.question?.questionText || "Unknown Point",
-            key,
-            actionPlan: ans.actionPlan || "",
-            actionOwner: ans.actionOwner || "",
-            actionDeadline: ans.actionDeadline || "",
-            actionStatus: ans.actionStatus || "Pending",
-          });
-        }
-      });
-    });
-
-    // Apply "Repeated" logic and persistence fallback
-    return failures.map((f, index) => {
-      const isRepeated = failCounts[f.key] > 1;
-      
-      // Persistence fallback: if current plan is empty, look for the most recent plan for the same key
-      let effectivePlan = f.actionPlan;
-      if (!effectivePlan && isRepeated) {
-        const previousFailure = failures.slice(index + 1).find(pf => pf.key === f.key && pf.actionPlan);
-        if (previousFailure) effectivePlan = previousFailure.actionPlan;
-      }
-
-      return {
-        ...f,
-        isRepeated,
-        repeatCount: failCounts[f.key],
-        actionPlan: effectivePlan,
-      };
-    }).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort by most recent
-  }, [audits]);
+    const list = failuresRes?.data || [];
+    return list.slice(0, 10); // Show top 10 on dashboard
+  }, [failuresRes]);
 
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
   const [editingPoint, setEditingPoint] = useState(null); // The point currently being edited
@@ -576,6 +533,7 @@ export default function SuperAdminDashboard() {
         ...editFormData,
       }).unwrap();
       setEditingPoint(null);
+      refetchFailures();
     } catch (err) {
       console.error("Failed to save action plan:", err);
     }
@@ -1426,9 +1384,19 @@ export default function SuperAdminDashboard() {
               Manage remediation plans for current and recurring failure points
             </p>
           </div>
-          <Badge variant="outline" className="h-fit">
-            {failureActionPoints.length} Failures Detected
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="h-fit">
+              {failureActionPoints.length} Failures Detected
+            </Badge>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="flex items-center gap-1 h-8"
+              onClick={() => navigate("/superadmin/failures")}
+            >
+              View Full History <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="border rounded-md overflow-hidden">

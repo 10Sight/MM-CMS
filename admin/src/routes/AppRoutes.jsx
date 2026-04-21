@@ -40,6 +40,7 @@ const AuditEmailSettingsPage = lazy(() => import("@/pages/AuditEmailSettingsPage
 const AuditFormSettingsPage = lazy(() => import("@/pages/AuditFormSettingsPage"));
 const AdminQuestionCategoriesPage = lazy(() => import("@/pages/AdminQuestionCategoriesPage"));
 const AdminQuestionCategoryDetailPage = lazy(() => import("@/pages/AdminQuestionCategoryDetailPage"));
+const FailureActionPlanPage = lazy(() => import("../pages/FailureActionPlanPage"));
 
 export default function AppRoutes() {
   return (
@@ -63,6 +64,7 @@ export default function AppRoutes() {
           <Route path="users/employee/:id" element={<SuperAdminEmployeeDetailPage />} />
           <Route path="users/admin/:id" element={<SuperAdminAdminDetailPage />} />
           <Route path="audits/:id" element={<AuditDetailPage />} />
+          <Route path="failures" element={<FailureActionPlanPage />} />
           <Route path="units" element={<UnitsPage />} />
           <Route path="add-user" element={<AddEmployeePage />} />
         </Route>
@@ -87,6 +89,7 @@ export default function AppRoutes() {
           <Route path="question-categories" element={<AdminQuestionCategoriesPage />} />
           <Route path="question-categories/:id" element={<AdminQuestionCategoryDetailPage />} />
           <Route path="audits/:id" element={<AuditDetailPage />} />
+          <Route path="failures" element={<FailureActionPlanPage />} />
           <Route path="audits/create" element={<AdminCreateTemplatePage />} />
           <Route path="departments" element={<DepartmentPage />} />
           <Route path="departments/:id" element={<DepartmentDetailPage />} />
