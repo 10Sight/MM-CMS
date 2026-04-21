@@ -92,7 +92,7 @@ export default function SuperAdminDashboard() {
       hods: usersList.filter((u) => u.role === "hod").length,
       shiftIncharges: usersList.filter((u) => u.role === "shift incharge").length,
       teamLeaders: usersList.filter((u) => u.role === "team leader").length,
-      recentUsers: usersList.slice(0, 5),
+      recentUsers: usersList.filter(u => u.role !== 'superadmin').slice(0, 5),
     }),
     [usersRes, usersList]
   );
@@ -194,7 +194,7 @@ export default function SuperAdminDashboard() {
   const { data: metricsRes, isLoading: metricsLoading } = useGetDashboardMetricsQuery({
     unit: selectedUnit !== 'all' ? selectedUnit : undefined,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    // We can pass current year range or let backend handle default
+    timeframe: timeframe,
   });
 
   const dashboardMetrics = metricsRes?.data || [];
@@ -329,107 +329,40 @@ export default function SuperAdminDashboard() {
       }));
   }, [audits, timeframe]);
 
-  // --- NEW: Layer-wise Plan vs Actual Data ---
+  // --- NEW: Layer-wise Plan vs Actual Data (Now uses backend metrics for full history) ---
   const layerWiseData = useMemo(() => {
-    const designations = ["plant head", "hod", "shift incharge", "team leader"];
-    return designations.map((desig) => {
-      // Plan: Sum of targetAudit.total for users with this designation
-      const planValue = usersList
-        .filter((u) => (u.designation || "none") === desig)
-        .reduce((sum, u) => sum + (u.targetAudit?.total || 0), 0);
-
-      // Actual: Count of audits completed by users with this designation
-      const actualValue = audits.filter((a) => {
-        const creatorDesig = a.createdBy?.designation || a.auditor?.designation;
-        return (creatorDesig || "none") === desig;
-      }).length;
-
+    const layerNames = ["Plant Head", "HOD", "Shift Incharge", "Team Leader"];
+    return layerNames.map(layer => {
+      const totalPlan = dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.plan || 0), 0);
+      const totalActual = dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.actual || 0), 0);
       return {
-        name: desig.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
-        Plan: planValue,
-        Actual: actualValue,
+        name: layer,
+        Plan: totalPlan,
+        Actual: totalActual
       };
     });
-  }, [usersList, audits]);
+  }, [dashboardMetrics]);
 
-  // --- NEW: Monthly Role Contribution Data ---
+  // --- NEW: Monthly Role Contribution Data (Now uses backend metrics) ---
   const contributionData = useMemo(() => {
-    const designations = ["plant head", "hod", "shift incharge", "team leader"];
-    const monthMap = {};
+    return dashboardMetrics.map(m => ({
+      month: m.month,
+      "Plant Head": m.layers?.["Plant Head"]?.actual || 0,
+      "HOD": m.layers?.["HOD"]?.actual || 0,
+      "Shift Incharge": m.layers?.["Shift Incharge"]?.actual || 0,
+      "Team Leader": m.layers?.["Team Leader"]?.actual || 0
+    }));
+  }, [dashboardMetrics]);
 
-    audits.forEach((audit) => {
-      const date = audit.date || audit.createdAt;
-      if (!date) return;
-      
-      const monthKey = format(new Date(date), "MMM.yy");
-      const creatorDesig = audit.createdBy?.designation || audit.auditor?.designation;
-
-      if (designations.includes(creatorDesig)) {
-        if (!monthMap[monthKey]) {
-          monthMap[monthKey] = { month: monthKey };
-          designations.forEach((d) => {
-            const label = d.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-            monthMap[monthKey][label] = 0;
-          });
-        }
-        const desigLabel = creatorDesig.split(" ").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-        monthMap[monthKey][desigLabel]++;
-      }
-    });
-
-    return Object.values(monthMap).sort((a, b) => {
-      const parseDate = (m) => {
-        const [mon, yr] = m.split('.');
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        return new Date(`20${yr}`, monthNames.indexOf(mon));
-      };
-      return parseDate(a.month) - parseDate(b.month);
-    });
-  }, [audits]);
-
-  // --- NEW: Monthly Completion Percentage Data (Overall) ---
+  // --- NEW: Monthly Completion Percentage Data (Overall) (Now uses backend metrics) ---
   const monthlyPercentageData = useMemo(() => {
-    const designations = ["plant head", "hod", "shift incharge", "team leader"];
-    const monthMap = {};
-
-    // Calculate total plan for all management layers combined
-    const totalPlan = usersList
-      .filter((u) => designations.includes(u.designation || "none"))
-      .reduce((sum, u) => sum + (u.targetAudit?.total || 0), 0);
-
-    // Group actual audits by month
-    audits.forEach((audit) => {
-      const date = audit.date || audit.createdAt;
-      if (!date) return;
-      
-      const monthKey = format(new Date(date), "MMM.yy");
-      const creatorDesig = audit.createdBy?.designation || audit.auditor?.designation;
-
-      if (designations.includes(creatorDesig)) {
-        if (!monthMap[monthKey]) {
-          monthMap[monthKey] = { month: monthKey, actual: 0 };
-        }
-        monthMap[monthKey].actual++;
-      }
-    });
-
-    // Calculate overall percentage per month
-    return Object.values(monthMap).map(data => {
-      return {
-        month: data.month,
-        "Overall": totalPlan > 0 ? Math.round((data.actual / totalPlan) * 100) : 0,
-        actual: data.actual,
-        plan: totalPlan
-      };
-    }).sort((a, b) => {
-      const parseDate = (m) => {
-        const [mon, yr] = m.split('.');
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        return new Date(`20${yr}`, monthNames.indexOf(mon));
-      };
-      return parseDate(a.month) - parseDate(b.month);
-    });
-  }, [audits, usersList]);
+    return dashboardMetrics.map(m => ({
+      month: m.month,
+      "Overall": m.target > 0 ? Math.round((m.actual / m.target) * 100) : 0,
+      actual: m.actual,
+      plan: m.target
+    }));
+  }, [dashboardMetrics]);
 
   const answerStats = useMemo(() => {
     if (!Array.isArray(audits)) return { pass: 0, fail: 0, na: 0, total: 0 };
@@ -969,7 +902,7 @@ export default function SuperAdminDashboard() {
           <CardContent>
             <div className="h-[350px] w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyPercentageData} margin={{ top: 20, right: 30, left: 10, bottom: 0 }}>
+                <BarChart data={monthlyPercentageData} margin={{ top: 20, right: 30, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis 
                     dataKey="month" 
@@ -985,6 +918,7 @@ export default function SuperAdminDashboard() {
                     tickFormatter={(value) => `${value}%`}
                   />
                   <Tooltip 
+                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     formatter={(value, name) => {
                       if (name === "Overall") return [`${value}%`, "Completion Rate"];
@@ -992,15 +926,14 @@ export default function SuperAdminDashboard() {
                     }}
                   />
                   <Legend verticalAlign="bottom" height={36}/>
-                  <Line 
-                    type="monotone" 
+                  <Bar 
                     dataKey="Overall" 
-                    stroke="#f97316" 
-                    strokeWidth={3} 
-                    dot={{ r: 4, fill: "#f97316" }} 
-                    activeDot={{ r: 6 }} 
+                    name="Completion %"
+                    fill="#f97316" 
+                    radius={[4, 4, 0, 0]}
+                    barSize={40}
                   />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

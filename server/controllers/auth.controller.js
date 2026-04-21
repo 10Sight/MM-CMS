@@ -532,7 +532,7 @@ export const getUserStats = asyncHandler(async (req, res) => {
     Employee.countDocuments({ designation: 'hod' }),
     Employee.countDocuments({ designation: 'shift incharge' }),
     Employee.countDocuments({ designation: 'team leader' }),
-    Employee.find({})
+    Employee.find({ role: { $ne: 'superadmin' } })
       .select('-password')
       .populate('department', 'name description')
       .sort({ createdAt: -1 })

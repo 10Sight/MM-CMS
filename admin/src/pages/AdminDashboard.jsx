@@ -228,7 +228,7 @@ export default function AdminDashboard() {
   const { data: metricsRes, isLoading: metricsLoading } = useGetDashboardMetricsQuery({
     unit: effectiveUnitId !== 'all' ? effectiveUnitId : undefined,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    // We can pass current year range or let backend handle default
+    timeframe: timeframe,
   });
 
   const dashboardMetrics = metricsRes?.data || [];

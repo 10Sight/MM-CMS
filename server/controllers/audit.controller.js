@@ -1151,10 +1151,34 @@ const getWorkingDays = (startDate, endDate) => {
 };
 
 export const getDashboardMetrics = asyncHandler(async (req, res) => {
-  const { unit, department, startDate, endDate } = req.query;
+  const { unit, department, startDate, endDate, timeframe = 'monthly' } = req.query;
   
   const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
   const end = endDate ? new Date(endDate) : new Date();
+
+  // Helper for consistent date keys across aggregation and target loops
+  const getPeriodKey = (date, mode) => {
+    const d = new Date(date);
+    if (mode === 'daily') return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    if (mode === 'weekly') {
+      // Simple week calculation
+      const firstDayOfYear = new Date(d.getFullYear(), 0, 1);
+      const pastDaysOfYear = (d - firstDayOfYear) / 86400000;
+      return `Week ${Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)}`;
+    }
+    if (mode === 'yearly') return d.getFullYear().toString();
+    // Default: monthly
+    return d.toLocaleString('en-US', { month: 'short' }) + "." + d.getFullYear().toString().slice(-2);
+  };
+
+  const groupIds = {
+    daily: { day: { $dayOfMonth: "$date" }, month: { $month: "$date" }, year: { $year: "$date" } },
+    weekly: { week: { $week: "$date" }, year: { $year: "$date" } },
+    monthly: { month: { $month: "$date" }, year: { $year: "$date" } },
+    yearly: { year: { $year: "$date" } }
+  };
+
+  const currentGroupId = groupIds[timeframe] || groupIds.monthly;
 
   // 1. Optimized Audit Aggregation
   const matchQuery = {
@@ -1179,66 +1203,60 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
     },
     { $unwind: { path: "$auditorData", preserveNullAndEmptyArrays: true } },
     {
-      $project: {
-        month: { $month: "$date" },
-        year: { $year: "$date" },
-        designation: { $toLower: { $ifNull: ["$auditorData.designation", ""] } },
-        answers: 1
-      }
-    },
-    {
       $group: {
-        _id: { month: "$month", year: "$year" },
+        _id: currentGroupId,
         actual: { $sum: 1 },
-        failed: {
-          $sum: {
-            $cond: [
-              {
-                $gt: [
-                  {
-                    $size: {
-                      $filter: {
-                        input: "$answers",
-                        as: "ans",
-                        cond: {
-                          $or: [
-                            { $eq: [{ $toLower: "$$ans.answer" }, "no"] },
-                            { $eq: [{ $toLower: "$$ans.answer" }, "fail"] }
-                          ]
-                        }
-                      }
-                    }
-                  },
-                  0
-                ]
-              },
-              1,
-              0
-            ]
-          }
-        },
         // Group by designation for layer stats
-        plantHeadActual: { $sum: { $cond: [{ $eq: ["$designation", "plant head"] }, 1, 0] } },
-        hodActual: { $sum: { $cond: [{ $eq: ["$designation", "hod"] }, 1, 0] } },
-        shiftInchargeActual: { $sum: { $cond: [{ $eq: ["$designation", "shift incharge"] }, 1, 0] } },
-        teamLeaderActual: { $sum: { $cond: [{ $eq: ["$designation", "team leader"] }, 1, 0] } }
+        plantHeadActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, 1, 0] } },
+        hodActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, 1, 0] } },
+        shiftInchargeActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, 1, 0] } },
+        teamLeaderActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, 1, 0] } }
       }
     }
   ]);
 
-  // 2. Fetch Employees for dynamic targets (usually a small set, so JS logic is fine)
+  // 2. Optimized Template-wise Failure Aggregation
+  const templateStats = await Audit.aggregate([
+    { $match: matchQuery },
+    { $unwind: "$answers" },
+    {
+      $match: {
+        "answers.answer": { $in: ["No", "Fail", "no", "fail"] }
+      }
+    },
+    {
+      $lookup: {
+        from: "questions",
+        localField: "answers.question",
+        foreignField: "_id",
+        as: "q"
+      }
+    },
+    { $unwind: { path: "$q", preserveNullAndEmptyArrays: true } },
+    {
+      $group: {
+        _id: {
+          ...currentGroupId,
+          template: { $ifNull: ["$q.templateTitle", "Uncategorized"] }
+        },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  // 3. Fetch Employees for dynamic targets (usually a small set, so JS logic is fine)
   const employeeQuery = {};
   if (unit) employeeQuery.unit = unit;
   if (department) employeeQuery.department = { $in: [department] };
   const employees = await Employee.find(employeeQuery).lean();
 
-  // 3. Initialize & Populate Monthly Data
-  const monthlyData = {};
+  // 3. Initialize & Populate Period Data
+  const periodData = {};
   let iterDate = new Date(start);
   while (iterDate <= end) {
-    const monthKey = iterDate.toLocaleString('en-US', { month: 'short' }) + "." + iterDate.getFullYear().toString().slice(-2);
-    monthlyData[monthKey] = {
-      month: monthKey,
+    const pKey = getPeriodKey(iterDate, timeframe);
+    periodData[pKey] = {
+      month: pKey, // Keeping key as 'month' for frontend compatibility
       target: 0,
       actual: 0,
       failed: 0,
@@ -1250,20 +1268,51 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       },
       processes: {}
     };
-    iterDate.setMonth(iterDate.getMonth() + 1);
+    
+    if (timeframe === 'daily') iterDate.setDate(iterDate.getDate() + 1);
+    else if (timeframe === 'weekly') iterDate.setDate(iterDate.getDate() + 7);
+    else if (timeframe === 'yearly') iterDate.setFullYear(iterDate.getFullYear() + 1);
+    else { // monthly
+      iterDate.setMonth(iterDate.getMonth() + 1);
+      iterDate.setDate(1);
+    }
   }
 
-  // Map aggregation results back to monthly structure
-  const monthNames = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  // 4. Map Results
   auditStats.forEach(stat => {
-    const mKey = `${monthNames[stat._id.month]}.${String(stat._id.year).slice(-2)}`;
-    if (monthlyData[mKey]) {
-      monthlyData[mKey].actual = stat.actual;
-      monthlyData[mKey].failed = stat.failed;
-      monthlyData[mKey].layers["Plant Head"].actual = stat.plantHeadActual;
-      monthlyData[mKey].layers["HOD"].actual = stat.hodActual;
-      monthlyData[mKey].layers["Shift Incharge"].actual = stat.shiftInchargeActual;
-      monthlyData[mKey].layers["Team Leader"].actual = stat.teamLeaderActual;
+    let dummyDate;
+    if (timeframe === 'daily') dummyDate = new Date(stat._id.year, stat._id.month - 1, stat._id.day);
+    else if (timeframe === 'weekly') {
+      dummyDate = new Date(stat._id.year, 0, 1);
+      dummyDate.setDate(dummyDate.getDate() + (stat._id.week * 7));
+    }
+    else if (timeframe === 'yearly') dummyDate = new Date(stat._id.year, 0, 1);
+    else dummyDate = new Date(stat._id.year, stat._id.month - 1, 1);
+
+    const pKey = getPeriodKey(dummyDate, timeframe);
+    if (periodData[pKey]) {
+      periodData[pKey].actual = stat.actual;
+      periodData[pKey].failed = stat.failed;
+      periodData[pKey].layers["Plant Head"].actual = stat.plantHeadActual;
+      periodData[pKey].layers["HOD"].actual = stat.hodActual;
+      periodData[pKey].layers["Shift Incharge"].actual = stat.shiftInchargeActual;
+      periodData[pKey].layers["Team Leader"].actual = stat.teamLeaderActual;
+    }
+  });
+
+  templateStats.forEach(stat => {
+    let dummyDate;
+    if (timeframe === 'daily') dummyDate = new Date(stat._id.year, stat._id.month - 1, stat._id.day);
+    else if (timeframe === 'weekly') {
+      dummyDate = new Date(stat._id.year, 0, 1);
+      dummyDate.setDate(dummyDate.getDate() + (stat._id.week * 7));
+    }
+    else if (timeframe === 'yearly') dummyDate = new Date(stat._id.year, 0, 1);
+    else dummyDate = new Date(stat._id.year, stat._id.month - 1, 1);
+
+    const pKey = getPeriodKey(dummyDate, timeframe);
+    if (periodData[pKey]) {
+      periodData[pKey].processes[stat._id.template] = stat.count;
     }
   });
 
@@ -1286,26 +1335,42 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
 
     let d = new Date(effectiveStart);
     while (d <= effectiveEnd) {
-      const mKey = d.toLocaleString('en-US', { month: 'short' }) + "." + d.getFullYear().toString().slice(-2);
-      if (monthlyData[mKey]) {
-        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
-        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-        const actualMonthStart = new Date(Math.max(monthStart, effectiveStart));
-        const actualMonthEnd = new Date(Math.min(monthEnd, effectiveEnd));
-        const workingDaysInMonth = getWorkingDays(actualMonthStart, actualMonthEnd);
-        const monthTarget = workingDaysInMonth * targetPerDay;
+      const pKey = getPeriodKey(d, timeframe);
+      if (periodData[pKey]) {
+        let periodStart, periodEnd;
+        if (timeframe === 'daily') {
+          periodStart = new Date(d); periodEnd = new Date(d);
+        } else if (timeframe === 'weekly') {
+          periodStart = new Date(d); periodEnd = new Date(d); periodEnd.setDate(d.getDate() + 6);
+        } else if (timeframe === 'yearly') {
+          periodStart = new Date(d.getFullYear(), 0, 1); periodEnd = new Date(d.getFullYear(), 11, 31);
+        } else {
+          periodStart = new Date(d.getFullYear(), d.getMonth(), 1);
+          periodEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        }
+
+        const actualPeriodStart = new Date(Math.max(periodStart, effectiveStart));
+        const actualPeriodEnd = new Date(Math.min(periodEnd, effectiveEnd));
+        const workingDaysInPeriod = getWorkingDays(actualPeriodStart, actualPeriodEnd);
+        const periodTarget = workingDaysInPeriod * targetPerDay;
         
-        monthlyData[mKey].target += monthTarget;
-        if (layerKey) monthlyData[mKey].layers[layerKey].plan += monthTarget;
+        periodData[pKey].target += periodTarget;
+        if (layerKey) periodData[pKey].layers[layerKey].plan += periodTarget;
       }
-      d.setMonth(d.getMonth() + 1);
-      d.setDate(1);
+      
+      if (timeframe === 'daily') d.setDate(d.getDate() + 1);
+      else if (timeframe === 'weekly') { d.setDate(d.getDate() + 7); d.setDate(d.getDate() - d.getDay() + 1); } // Start of next week
+      else if (timeframe === 'yearly') { d.setFullYear(d.getFullYear() + 1); d.setMonth(0); d.setDate(1); }
+      else { d.setMonth(d.getMonth() + 1); d.setDate(1); }
     }
   });
 
-  const result = Object.values(monthlyData).sort((a, b) => {
-    const [am, ay] = a.month.split("."); const [bm, by] = b.month.split(".");
-    return new Date(`${am} 20${ay}`) - new Date(`${bm} 20${by}`);
+  const result = Object.values(periodData).sort((a, b) => {
+    // For sorting, we need a standard representation. 
+    // Since we kept periodData indexed by pKey, order of keys is already somewhat maintained but values can be anything.
+    // Better to sort by the month key if possible, but pKey format varies.
+    // Actually, object values maintained by the loop order above should be correct.
+    return 0; // Maintain loop order
   });
 
   result.forEach(m => {

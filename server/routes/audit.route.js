@@ -31,18 +31,12 @@ const validateId = (req, res, next) => {
   next();
 };
 
-// --- Dynamic ID Routes (Moved to top with validation) ---
-router.get("/:id", verifyJWT, validateId, cache(cacheConfig.medium), getAuditById);
-router.post("/:id/share", verifyJWT, validateId, authorizeRoles("admin", "employee"), shareAuditByEmail);
-router.delete("/:id", verifyJWT, validateId, authorizeRoles("admin"), deleteAudit);
-router.put("/:id", verifyJWT, validateId, authorizeRoles("admin"), updateAudit);
-router.put("/:id/answers/:answerId/action-plan", verifyJWT, validateId, authorizeRoles("admin", "superadmin"), updateAuditActionPlan);
-
 // --- Static Routes ---
 router.get("/", verifyJWT, authorizeRoles("admin", "employee", "superadmin"), cache(cacheConfig.short), getAudits);
 router.get("/export", verifyJWT, authorizeRoles("admin", "manager", "superadmin"), exportAudits);
 router.get("/metrics", verifyJWT, authorizeRoles("admin", "manager", "superadmin"), cache(cacheConfig.short), getDashboardMetrics);
 router.get("/failures", verifyJWT, authorizeRoles("admin", "superadmin"), getAuditFailures);
+
 // Auditor submits audit (with photo upload support)
 router.post("/", verifyJWT, authorizeRoles("employee", "manager", "admin"), uploadFields, createAudit);
 
@@ -55,6 +49,13 @@ router.put("/email-settings", verifyJWT, authorizeRoles("admin"), updateAuditEma
 // - Only admin can UPDATE them
 router.get("/form-settings", verifyJWT, authorizeRoles("admin", "employee", "superadmin"), getAuditFormSettings);
 router.put("/form-settings", verifyJWT, authorizeRoles("admin"), updateAuditFormSettings);
+
+// --- Dynamic ID Routes ---
+router.get("/:id", verifyJWT, validateId, cache(cacheConfig.medium), getAuditById);
+router.post("/:id/share", verifyJWT, validateId, authorizeRoles("admin", "employee"), shareAuditByEmail);
+router.delete("/:id", verifyJWT, validateId, authorizeRoles("admin"), deleteAudit);
+router.put("/:id", verifyJWT, validateId, authorizeRoles("admin"), updateAudit);
+router.put("/:id/answers/:answerId/action-plan", verifyJWT, validateId, authorizeRoles("admin", "superadmin"), updateAuditActionPlan);
 
 // Admin (or manager) can view all audits
 
