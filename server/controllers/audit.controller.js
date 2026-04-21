@@ -1206,6 +1206,33 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       $group: {
         _id: currentGroupId,
         actual: { $sum: 1 },
+        failed: {
+          $sum: {
+            $cond: [
+              {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: "$answers",
+                        as: "ans",
+                        cond: {
+                          $or: [
+                            { $eq: [{ $toLower: "$$ans.answer" }, "no"] },
+                            { $eq: [{ $toLower: "$$ans.answer" }, "fail"] }
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  0
+                ]
+              },
+              1,
+              0
+            ]
+          }
+        },
         // Group by designation for layer stats
         plantHeadActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, 1, 0] } },
         hodActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, 1, 0] } },
