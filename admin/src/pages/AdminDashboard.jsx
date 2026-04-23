@@ -1177,17 +1177,24 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboardMetrics.map(m => ({
-                  month: m.month,
-                  "Plant Head": m.layers?.["Plant Head"]?.actual || 0,
-                  "HOD": m.layers?.["HOD"]?.actual || 0,
-                  "Shift Incharge": m.layers?.["Shift Incharge"]?.actual || 0,
-                  "Team Leader": m.layers?.["Team Leader"]?.actual || 0,
-                }))}>
+                <BarChart data={dashboardMetrics.map(m => {
+                  const ph = m.layers?.["Plant Head"]?.actual || 0;
+                  const hod = m.layers?.["HOD"]?.actual || 0;
+                  const si = m.layers?.["Shift Incharge"]?.actual || 0;
+                  const tl = m.layers?.["Team Leader"]?.actual || 0;
+                  const total = ph + hod + si + tl;
+                  return {
+                    month: m.month,
+                    "Plant Head": total > 0 ? Math.round((ph / total) * 100) : 0,
+                    "HOD": total > 0 ? Math.round((hod / total) * 100) : 0,
+                    "Shift Incharge": total > 0 ? Math.round((si / total) * 100) : 0,
+                    "Team Leader": total > 0 ? Math.round((tl / total) * 100) : 0,
+                  };
+                })}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip />
+                  <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+                  <Tooltip formatter={(value) => `${value}%`} />
                   <Legend />
                   <Bar dataKey="Plant Head" stackId="a" fill="#eab308" />
                   <Bar dataKey="HOD" stackId="a" fill="#f97316" />
