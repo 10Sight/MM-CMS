@@ -39,7 +39,10 @@ export const api = createApi({
       providesTags: ['Auth'],
     }),
     getUserStats: builder.query({
-      query: () => '/api/v1/auth/user-stats',
+      query: (params) => ({
+        url: '/api/v1/auth/user-stats',
+        params,
+      }),
       providesTags: ['Employee'],
     }),
     initiateQrLogin: builder.mutation({
@@ -78,9 +81,16 @@ export const api = createApi({
           : [{ type: 'Employee', id: 'LIST' }],
     }),
     getAllUsers: builder.query({
-      query: ({ page = 1, limit = 20, search = '', role } = {}) => ({
+      query: ({ page = 1, limit = 20, search = '', role, unit, department } = {}) => ({
         url: '/api/v1/auth/get-all-users',
-        params: { page, limit, search, ...(role ? { role } : {}) },
+        params: { 
+          page, 
+          limit, 
+          search, 
+          ...(role ? { role } : {}),
+          ...(unit ? { unit } : {}),
+          ...(department ? { department } : {}),
+        },
       }),
       providesTags: [{ type: 'Employee', id: 'ALL' }],
     }),
@@ -230,10 +240,13 @@ export const api = createApi({
         url: '/api/audits/failures',
         params,
       }),
-      providesTags: (result) => 
-        result?.data
-          ? [...result.data.map(({ auditId }) => ({ type: 'Audit', id: auditId })), { type: 'Audit', id: 'FAILURES' }]
-          : [{ type: 'Audit', id: 'FAILURES' }],
+      providesTags: (result) => {
+        const failures = result?.data?.failures || (Array.isArray(result?.data) ? result.data : []);
+        return [
+          ...failures.map(({ auditId }) => ({ type: 'Audit', id: auditId })),
+          { type: 'Audit', id: 'FAILURES' }
+        ];
+      },
     }),
     getAuditById: builder.query({
       query: (id) => `/api/audits/${id}`,

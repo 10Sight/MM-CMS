@@ -37,9 +37,11 @@ export default function FailureActionPlanPage() {
     startDate: "",
     endDate: ""
   });
+  const [page, setPage] = useState(1);
+  const limit = 20;
 
   const queryParams = useMemo(() => {
-    const params = {};
+    const params = { page, limit };
     if (filters.unit !== "all") params.unit = filters.unit;
     if (filters.department !== "all") params.department = filters.department;
     if (filters.line !== "all") params.line = filters.line;
@@ -48,7 +50,7 @@ export default function FailureActionPlanPage() {
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
     return params;
-  }, [filters]);
+  }, [filters, page]);
 
   // Data
   const { data: failuresRes, isLoading, refetch } = useGetAuditFailuresQuery(queryParams);
@@ -57,22 +59,29 @@ export default function FailureActionPlanPage() {
   const { data: linesRes } = useGetLinesQuery({ department: filters.department !== "all" ? filters.department : undefined }, { skip: filters.department === "all" });
   const { data: machinesRes } = useGetMachinesQuery({ line: filters.line !== "all" ? filters.line : undefined }, { skip: filters.line === "all" });
 
-  const failures = failuresRes?.data || [];
+  const failures = failuresRes?.data?.failures || [];
+  const pagination = failuresRes?.data?.pagination || { totalRecords: 0, totalPages: 1, currentPage: 1 };
+
   const units = unitsRes?.data || [];
   const departments = deptsRes?.data?.departments || deptsRes?.data || [];
   const lines = linesRes?.data || [];
   const machines = machinesRes?.data || [];
 
+  // Reset page when filters change
+  React.useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
   // Stats
   const stats = useMemo(() => {
     return {
-      total: failures.length,
-      pending: failures.filter(f => f.actionStatus === "Pending").length,
-      resolved: failures.filter(f => f.actionStatus === "Resolved").length,
-      inProgress: failures.filter(f => f.actionStatus === "In Progress").length,
-      repeated: failures.filter(f => f.isRepeated).length
+      total: pagination.totalRecords ?? failures.length,
+      pending: failuresRes?.data?.totalPending ?? failures.filter(f => f.actionStatus === "Pending").length,
+      resolved: failuresRes?.data?.totalResolved ?? failures.filter(f => f.actionStatus === "Resolved").length,
+      inProgress: failuresRes?.data?.totalInProgress ?? failures.filter(f => f.actionStatus === "In Progress").length,
+      repeated: failuresRes?.data?.totalRepeated ?? failures.filter(f => f.isRepeated).length
     };
-  }, [failures]);
+  }, [failures, pagination, failuresRes]);
 
   // Editing logic
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
@@ -82,6 +91,9 @@ export default function FailureActionPlanPage() {
     actionOwner: "",
     actionDeadline: "",
     actionStatus: "Pending",
+    rootCause: "",
+    systemicRootCause: "",
+    systemImprovement: "",
   });
 
   const handleEditOpen = (point) => {
@@ -91,6 +103,9 @@ export default function FailureActionPlanPage() {
       actionOwner: point.actionOwner || "",
       actionDeadline: point.actionDeadline ? format(new Date(point.actionDeadline), "yyyy-MM-dd") : "",
       actionStatus: point.actionStatus || "Pending",
+      rootCause: point.rootCause || "",
+      systemicRootCause: point.systemicRootCause || "",
+      systemImprovement: point.systemImprovement || "",
     });
   };
 
@@ -118,8 +133,9 @@ export default function FailureActionPlanPage() {
       'Machine': f.machine,
       'Auditor': f.auditor,
       'Point (Question)': f.question,
-      'Answer': f.answer,
-      'Remark': f.remark,
+      'Root Cause': f.rootCause || '',
+      'Systemic Root Cause': f.systemicRootCause || '',
+      'System Improvement': f.systemImprovement || '',
       'Action Plan': f.actionPlan,
       'Owner': f.actionOwner,
       'Deadline': f.actionDeadline ? format(new Date(f.actionDeadline), 'dd-MM-yyyy') : '',
@@ -216,7 +232,7 @@ export default function FailureActionPlanPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Unit</Label>
-              <Select value={filters.unit} onValueChange={(val) => setFilters({...filters, unit: val})}>
+              <Select value={filters.unit} onValueChange={(val) => setFilters({ ...filters, unit: val })}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All Units" />
                 </SelectTrigger>
@@ -228,7 +244,7 @@ export default function FailureActionPlanPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Department</Label>
-              <Select value={filters.department} onValueChange={(val) => setFilters({...filters, department: val})}>
+              <Select value={filters.department} onValueChange={(val) => setFilters({ ...filters, department: val })}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All Depts" />
                 </SelectTrigger>
@@ -240,7 +256,7 @@ export default function FailureActionPlanPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Line</Label>
-              <Select value={filters.line} onValueChange={(val) => setFilters({...filters, line: val})}>
+              <Select value={filters.line} onValueChange={(val) => setFilters({ ...filters, line: val })}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All Lines" />
                 </SelectTrigger>
@@ -252,7 +268,7 @@ export default function FailureActionPlanPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Machine</Label>
-              <Select value={filters.machine} onValueChange={(val) => setFilters({...filters, machine: val})}>
+              <Select value={filters.machine} onValueChange={(val) => setFilters({ ...filters, machine: val })}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All Machines" />
                 </SelectTrigger>
@@ -264,7 +280,7 @@ export default function FailureActionPlanPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Status</Label>
-              <Select value={filters.status} onValueChange={(val) => setFilters({...filters, status: val})}>
+              <Select value={filters.status} onValueChange={(val) => setFilters({ ...filters, status: val })}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
@@ -279,20 +295,20 @@ export default function FailureActionPlanPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Start Date</Label>
-              <Input 
-                type="date" 
-                className="h-8 text-xs" 
+              <Input
+                type="date"
+                className="h-8 text-xs"
                 value={filters.startDate}
-                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">End Date</Label>
-              <Input 
-                type="date" 
-                className="h-8 text-xs" 
+              <Input
+                type="date"
+                className="h-8 text-xs"
                 value={filters.endDate}
-                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
               />
             </div>
           </div>
@@ -306,11 +322,14 @@ export default function FailureActionPlanPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[100px]">Date</TableHead>
-                  <TableHead>Location Detail</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Department</TableHead>
                   <TableHead>Failure Point</TableHead>
-                  <TableHead className="text-center">Info</TableHead>
-                  <TableHead>Action Plan</TableHead>
+                  <TableHead>Root Cause</TableHead>
+                  <TableHead>Systemic Root Cause</TableHead>
+                  <TableHead>System improvement against root cause</TableHead>
+                  <TableHead>Responsibility</TableHead>
+                  <TableHead>Target Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Manage</TableHead>
                 </TableRow>
@@ -318,9 +337,9 @@ export default function FailureActionPlanPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                     <TableCell colSpan={7} className="text-center py-20 text-muted-foreground animate-pulse font-medium">
-                        Loading failure data...
-                     </TableCell>
+                    <TableCell colSpan={7} className="text-center py-20 text-muted-foreground animate-pulse font-medium">
+                      Loading failure data...
+                    </TableCell>
                   </TableRow>
                 ) : failures.map((point) => (
                   <TableRow key={point.answerId} className="group hover:bg-muted/30 transition-colors">
@@ -331,42 +350,36 @@ export default function FailureActionPlanPage() {
                       <div className="text-xs font-semibold">{point.machine}</div>
                       <div className="text-[10px] text-muted-foreground uppercase">{point.line} | {point.department}</div>
                     </TableCell>
-                    <TableCell className="max-w-[300px]">
-                      <div className="text-sm line-clamp-2" title={point.question}>{point.question}</div>
-                      <div className="text-[10px] text-muted-foreground mt-1 bg-muted px-1.5 py-0.5 rounded w-fit">{point.template}</div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex flex-col items-center gap-1">
+                    <TableCell className="max-w-[200px]">
+                      <div className="text-sm font-medium line-clamp-2" title={point.question}>{point.question}</div>
+                      <div className="flex gap-1 mt-1">
                         {point.isRepeated && (
-                          <Badge variant="destructive" className="text-[9px] h-4 px-1 flex items-center gap-0.5">
-                             <TrendingDown className="h-2 w-2" /> REPEATED ({point.repeatCount})
-                          </Badge>
-                        )}
-                        {point.auditorCategory === 'critical' && (
-                          <Badge variant="outline" className="text-[9px] h-4 px-1 border-destructive text-destructive flex items-center gap-0.5">
-                             <ShieldAlert className="h-2 w-2" /> CRITICAL
+                          <Badge variant="destructive" className="text-[9px] h-4 px-1">
+                            REPEATED ({point.repeatCount})
                           </Badge>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
-                       {point.actionPlan ? (
-                         <div className="space-y-1">
-                            <div className="text-xs font-medium text-blue-700 line-clamp-1 italic">"{point.actionPlan}"</div>
-                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                               <span className="flex items-center gap-0.5"><User className="h-2.5 w-2.5" /> {point.actionOwner || "No Owner"}</span>
-                               <span className="flex items-center gap-0.5"><Calendar className="h-2.5 w-2.5" /> {point.actionDeadline ? format(new Date(point.actionDeadline), "dd MMM") : "No Date"}</span>
-                            </div>
-                         </div>
-                       ) : (
-                         <span className="text-[10px] text-muted-foreground italic">No implementation steps defined</span>
-                       )}
+                    <TableCell className="text-xs italic text-muted-foreground max-w-[150px]">
+                      {point.rootCause || "-"}
+                    </TableCell>
+                    <TableCell className="text-xs italic text-muted-foreground max-w-[150px]">
+                      {point.systemicRootCause || "-"}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium text-blue-700 max-w-[200px]">
+                      {point.systemImprovement || point.actionPlan || "-"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {point.actionOwner || "-"}
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">
+                      {point.actionDeadline ? format(new Date(point.actionDeadline), "dd MMM yy") : "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge 
+                      <Badge
                         variant={
-                          point.actionStatus === "Resolved" ? "success" : 
-                          point.actionStatus === "In Progress" ? "default" : "destructive"
+                          point.actionStatus === "Resolved" ? "success" :
+                            point.actionStatus === "In Progress" ? "default" : "destructive"
                         }
                         className="text-[10px]"
                       >
@@ -374,9 +387,9 @@ export default function FailureActionPlanPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         className="h-8 w-8 p-0"
                         onClick={() => handleEditOpen(point)}
                       >
@@ -388,10 +401,10 @@ export default function FailureActionPlanPage() {
                 {!isLoading && failures.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-20 text-muted-foreground">
-                       <div className="flex flex-col items-center gap-2">
-                          <CheckCircle2 className="h-10 w-10 text-emerald-500 opacity-20" />
-                          <p className="font-medium">All clear! No pending failure points found.</p>
-                       </div>
+                      <div className="flex flex-col items-center gap-2">
+                        <CheckCircle2 className="h-10 w-10 text-emerald-500 opacity-20" />
+                        <p className="font-medium">All clear! No pending failure points found.</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}
@@ -400,6 +413,65 @@ export default function FailureActionPlanPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {!isLoading && pagination.totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-2">
+          <div className="text-sm text-muted-foreground">
+            Showing <span className="font-medium">{(page - 1) * limit + 1}</span> to{" "}
+            <span className="font-medium">
+              {Math.min(page * limit, pagination.totalRecords)}
+            </span>{" "}
+            of <span className="font-medium">{pagination.totalRecords}</span> entries
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {[...Array(pagination.totalPages)].map((_, i) => {
+                const pageNum = i + 1;
+                // Show only a few page numbers if there are too many
+                if (
+                  pagination.totalPages > 7 &&
+                  pageNum !== 1 &&
+                  pageNum !== pagination.totalPages &&
+                  Math.abs(pageNum - page) > 1
+                ) {
+                  if (pageNum === 2 || pageNum === pagination.totalPages - 1) {
+                    return <span key={pageNum} className="px-1 text-muted-foreground">...</span>;
+                  }
+                  return null;
+                }
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={page === pageNum ? "default" : "outline"}
+                    size="sm"
+                    className="w-8 h-8 p-0"
+                    onClick={() => setPage(pageNum)}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+              disabled={page === pagination.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Action Plan Edit Dialog */}
       <Dialog open={!!editingPoint} onOpenChange={(open) => !open && setEditingPoint(null)}>
@@ -413,24 +485,47 @@ export default function FailureActionPlanPage() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2 p-3 bg-muted rounded-lg text-sm border">
-               <div className="grid grid-cols-4 gap-2">
-                  <span className="text-muted-foreground font-medium">Audit Date:</span>
-                  <span className="col-span-3">{editingPoint?.date ? format(new Date(editingPoint?.date), "PPP") : "N/A"}</span>
-               </div>
-               <Separator className="my-1" />
-               <div className="grid grid-cols-4 gap-2">
-                  <span className="text-muted-foreground font-medium">Point:</span>
-                  <span className="col-span-3 text-destructive font-medium">{editingPoint?.question}</span>
-               </div>
+              <div className="grid grid-cols-4 gap-2">
+                <span className="text-muted-foreground font-medium">Audit Date:</span>
+                <span className="col-span-3">{editingPoint?.date ? format(new Date(editingPoint?.date), "PPP") : "N/A"}</span>
+              </div>
+              <Separator className="my-1" />
+              <div className="grid grid-cols-4 gap-2">
+                <span className="text-muted-foreground font-medium">Point:</span>
+                <span className="col-span-3 text-destructive font-medium">{editingPoint?.question}</span>
+              </div>
             </div>
-            
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="rootCause">Root Cause</Label>
+                <Textarea
+                  id="rootCause"
+                  placeholder="Identify why it happened..."
+                  value={editFormData.rootCause}
+                  onChange={(e) => setEditFormData({ ...editFormData, rootCause: e.target.value })}
+                  className="min-h-[80px]"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="systemicRootCause">Systemic Root Cause</Label>
+                <Textarea
+                  id="systemicRootCause"
+                  placeholder="Identify process gap..."
+                  value={editFormData.systemicRootCause}
+                  onChange={(e) => setEditFormData({ ...editFormData, systemicRootCause: e.target.value })}
+                  className="min-h-[80px]"
+                />
+              </div>
+            </div>
+
             <div className="grid gap-2">
-              <Label htmlFor="actionPlan">Action Plan Steps</Label>
+              <Label htmlFor="systemImprovement">System Improvement against Root Cause</Label>
               <Textarea
-                id="actionPlan"
-                placeholder="Ex: Re-training operator, replacing sensor, updating SOP..."
-                value={editFormData.actionPlan}
-                onChange={(e) => setEditFormData({ ...editFormData, actionPlan: e.target.value })}
+                id="systemImprovement"
+                placeholder="Ex: Updating SOP, adding automated check, etc."
+                value={editFormData.systemImprovement}
+                onChange={(e) => setEditFormData({ ...editFormData, systemImprovement: e.target.value })}
                 className="min-h-[100px]"
               />
             </div>
@@ -458,8 +553,8 @@ export default function FailureActionPlanPage() {
 
             <div className="grid gap-2">
               <Label htmlFor="actionStatus">Remediation Status</Label>
-              <Select 
-                value={editFormData.actionStatus} 
+              <Select
+                value={editFormData.actionStatus}
                 onValueChange={(val) => setEditFormData({ ...editFormData, actionStatus: val })}
               >
                 <SelectTrigger>

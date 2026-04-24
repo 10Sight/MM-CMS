@@ -480,6 +480,16 @@ export const getAllUsers = asyncHandler(async (req, res) => {
     query.designation = designation;
   }
 
+  // Optional unit filter
+  if (req.query.unit) {
+    query.unit = req.query.unit;
+  }
+
+  // Optional department filter
+  if (req.query.department) {
+    query.department = req.query.department;
+  }
+
   // Add search functionality
   if (search) {
     const searchOr = [
@@ -523,16 +533,31 @@ export const getAllUsers = asyncHandler(async (req, res) => {
 
 // Superadmin/Admin: user stats (counts by role, recent users)
 export const getUserStats = asyncHandler(async (req, res) => {
+  const { unit, department } = req.query;
+  
+  let query = {};
+  
+  // Restrict admins to their own unit
+  if (req.user.role === 'admin' && req.user.unit) {
+    query.unit = req.user.unit;
+  } else if (unit) {
+    query.unit = unit;
+  }
+  
+  if (department) {
+    query.department = department;
+  }
+
   const [total, admins, employees, superadmins, plantHeads, hods, shiftIncharges, teamLeaders, recentUsers] = await Promise.all([
-    Employee.countDocuments({}),
-    Employee.countDocuments({ role: 'admin' }),
-    Employee.countDocuments({ role: 'employee' }),
-    Employee.countDocuments({ role: 'superadmin' }),
-    Employee.countDocuments({ designation: 'plant head' }),
-    Employee.countDocuments({ designation: 'hod' }),
-    Employee.countDocuments({ designation: 'shift incharge' }),
-    Employee.countDocuments({ designation: 'team leader' }),
-    Employee.find({ role: { $ne: 'superadmin' } })
+    Employee.countDocuments(query),
+    Employee.countDocuments({ ...query, role: 'admin' }),
+    Employee.countDocuments({ ...query, role: 'employee' }),
+    Employee.countDocuments({ ...query, role: 'superadmin' }),
+    Employee.countDocuments({ ...query, designation: 'plant head' }),
+    Employee.countDocuments({ ...query, designation: 'hod' }),
+    Employee.countDocuments({ ...query, designation: 'shift incharge' }),
+    Employee.countDocuments({ ...query, designation: 'team leader' }),
+    Employee.find({ ...query, role: { $ne: 'superadmin' } })
       .select('-password')
       .populate('department', 'name description')
       .sort({ createdAt: -1 })

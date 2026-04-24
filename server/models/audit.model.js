@@ -76,6 +76,18 @@ const AuditSchema = new mongoose.Schema(
           type: String,
           trim: true,
         },
+        rootCause: {
+          type: String,
+          trim: true,
+        },
+        systemicRootCause: {
+          type: String,
+          trim: true,
+        },
+        systemImprovement: {
+          type: String,
+          trim: true,
+        },
         actionOwner: {
           type: String,
           trim: true,

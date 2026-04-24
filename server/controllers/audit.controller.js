@@ -1112,7 +1112,7 @@ export const deleteAudit = asyncHandler(async (req, res) => {
 
 export const updateAuditActionPlan = asyncHandler(async (req, res) => {
   const { id, answerId } = req.params;
-  const { actionPlan, actionOwner, actionDeadline, actionStatus } = req.body;
+  const { actionPlan, actionOwner, actionDeadline, actionStatus, rootCause, systemicRootCause, systemImprovement } = req.body;
 
   const audit = await Audit.findById(id);
   if (!audit) throw new ApiError(404, "Audit not found");
@@ -1126,6 +1126,9 @@ export const updateAuditActionPlan = asyncHandler(async (req, res) => {
   if (actionOwner !== undefined) audit.answers[answerIndex].actionOwner = actionOwner;
   if (actionDeadline !== undefined) audit.answers[answerIndex].actionDeadline = actionDeadline;
   if (actionStatus !== undefined) audit.answers[answerIndex].actionStatus = actionStatus;
+  if (rootCause !== undefined) audit.answers[answerIndex].rootCause = rootCause;
+  if (systemicRootCause !== undefined) audit.answers[answerIndex].systemicRootCause = systemicRootCause;
+  if (systemImprovement !== undefined) audit.answers[answerIndex].systemImprovement = systemImprovement;
 
   await audit.save();
 
@@ -1414,6 +1417,9 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
  */
 export const getAuditFailures = asyncHandler(async (req, res) => {
   const { unit, department, line, machine, startDate, endDate, status } = req.query;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
 
   const query = {};
   if (unit) query.unit = unit;
@@ -1476,6 +1482,9 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
           actionOwner: ans.actionOwner,
           actionDeadline: ans.actionDeadline,
           actionStatus: ans.actionStatus || "Pending",
+          rootCause: ans.rootCause,
+          systemicRootCause: ans.systemicRootCause,
+          systemImprovement: ans.systemImprovement,
           repeatKey: key
         });
       }
@@ -1494,5 +1503,24 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
     repeatCount: repeatCounts[f.repeatKey]
   }));
 
-  return res.json(new ApiResponse(200, result, "Audit failures fetched successfully"));
+  const totalPending = allFailures.filter(f => f.actionStatus === "Pending").length;
+  const totalResolved = allFailures.filter(f => f.actionStatus === "Resolved").length;
+  const totalInProgress = allFailures.filter(f => f.actionStatus === "In Progress").length;
+  const totalRepeated = allFailures.filter(f => repeatCounts[f.repeatKey] > 1).length;
+
+  const paginatedResult = result.slice(skip, skip + limit);
+
+  return res.json(new ApiResponse(200, {
+    failures: paginatedResult,
+    totalPending,
+    totalResolved,
+    totalInProgress,
+    totalRepeated,
+    pagination: {
+      totalRecords: result.length,
+      totalPages: Math.ceil(result.length / limit),
+      currentPage: page,
+      limit: limit
+    }
+  }, "Audit failures fetched successfully"));
 });
