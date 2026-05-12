@@ -36,7 +36,11 @@ export default function LoginPage() {
   const onSubmit = async (values) => {
     setError(null);
     try {
-      const result = await login({ username: values.username, password: values.password }).unwrap();
+      const result = await login({ 
+        username: values.username, 
+        password: values.password,
+        remember: values.remember 
+      }).unwrap();
       const user = result?.data?.employee;
       const role = user?.role;
       if (!role) throw new Error("Invalid login response");

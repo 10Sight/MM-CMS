@@ -137,7 +137,7 @@ export const registerEmployee = asyncHandler(async (req, res) => {
 });
 
 export const loginEmployee = asyncHandler(async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, remember } = req.body;
 
   console.log('Login attempt:', { username, password: password ? '***' : 'missing' });
 
@@ -182,12 +182,17 @@ export const loginEmployee = asyncHandler(async (req, res) => {
 
   const token = employee.generateJWT();
   const isProd = EVN.NODE_ENV === 'production';
-  res.cookie("accessToken", token, {
+  const cookieOptions = {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? "None" : "Lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  };
+
+  if (remember) {
+    cookieOptions.maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+  }
+
+  res.cookie("accessToken", token, cookieOptions);
 
   console.log('Login successful for:', employee.fullName);
   return res.status(200).json(new ApiResponse(200, { employee }, "Login successful"));
@@ -665,7 +670,7 @@ export const initiateMobileLogin = asyncHandler(async (req, res) => {
 });
 
 export const verifyQrLoginOtp = asyncHandler(async (req, res) => {
-  const { employeeId, otp } = req.body || {};
+  const { employeeId, otp, remember } = req.body || {};
 
   if (!employeeId || !otp) {
     throw new ApiError(400, "Employee ID and OTP are required");
@@ -708,12 +713,17 @@ export const verifyQrLoginOtp = asyncHandler(async (req, res) => {
   const token = employee.generateJWT();
   const isProd = EVN.NODE_ENV === 'production';
 
-  res.cookie("accessToken", token, {
+  const cookieOptions = {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? "None" : "Lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  };
+
+  if (remember) {
+    cookieOptions.maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+  }
+
+  res.cookie("accessToken", token, cookieOptions);
 
   return res.status(200).json(new ApiResponse(200, { employee }, "Login successful"));
 });

@@ -179,6 +179,13 @@ export const setupTargetAuditReminders = (app) => {
                   <p style="margin:8px 0 6px 0;font-size:13px;color:#374151;">
                     Please complete the remaining audits within the target period.
                   </p>
+                  
+                  <div style="margin: 20px 0; text-align: center;">
+                    <a href="${EVN.CLIENT_URL}" style="display: inline-block; padding: 12px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                      Login to Dashboard
+                    </a>
+                  </div>
+
                   <p style="margin:0;font-size:13px;color:#374151;">
                     Regards,<br />
                     <span style="font-weight:600;">Sarvagaya Institute</span>

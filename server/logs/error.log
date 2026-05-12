@@ -23597,3 +23597,21 @@
 [24 Apr, 2026 - 12:13:58:1358] [31merror[39m: [31mFailed to send target audit reminder to prashant.pawade@marelli.motherson.com: unable to verify the first certificate[39m
 [24 Apr, 2026 - 12:13:58:1358] [31merror[39m: [31mFailed to send target audit reminder to bhushan.eerande@int.motherson.com: unable to verify the first certificate[39m
 [24 Apr, 2026 - 12:13:58:1358] [31merror[39m: [31mFailed to send target audit reminder to prashant.pawade@marelli.motherson.com: unable to verify the first certificate[39m
+[24 Apr, 2026 - 12:47:02:472] [31merror[39m: [31mTarget audit reminder job failed: connection 12 to 159.41.229.92:27017 timed out[39m
+[24 Apr, 2026 - 12:47:02:472] [31merror[39m: [31mTarget audit reminder job failed: connection 12 to 159.41.229.92:27017 timed out[39m
+[24 Apr, 2026 - 12:47:06:476] [31merror[39m: [31mTarget audit reminder job failed: connection 12 to 159.41.229.92:27017 timed out[39m
+[24 Apr, 2026 - 12:47:21:4721] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5012ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:47:31:4731] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5207ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:47:41:4741] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5389ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:47:50:4750] [31merror[39m: [31mTarget audit reminder job failed: connection <monitor> to 159.41.229.92:27017 closed[39m
+[24 Apr, 2026 - 12:47:56:4756] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5011ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:48:33:4833] [31merror[39m: [31mTarget audit reminder job failed: connection 22 to [64:ff9b::9f29:e55c]:27017 timed out[39m
+[24 Apr, 2026 - 12:48:36:4836] [31merror[39m: [31mTarget audit reminder job failed: connection 22 to [64:ff9b::9f29:e55c]:27017 timed out[39m
+[24 Apr, 2026 - 12:48:47:4847] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5536ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:48:47:4847] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-01.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:48:47:4847] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-01.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:48:56:4856] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:06:496] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:16:4916] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:26:4926] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:36:4936] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m

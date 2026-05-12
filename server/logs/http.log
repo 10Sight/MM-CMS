@@ -29646,3 +29646,54 @@
 [24 Apr, 2026 - 12:32:01:321] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-00.knfen.mongodb.net:27017/test[39m
 [24 Apr, 2026 - 12:36:28:3628] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
 [24 Apr, 2026 - 12:36:29:3629] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-00.knfen.mongodb.net:27017/test[39m
+[24 Apr, 2026 - 12:37:20:3720] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[24 Apr, 2026 - 12:37:21:3721] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-02.knfen.mongodb.net:27017/test[39m
+[24 Apr, 2026 - 12:42:01:421] [34minfo[39m: [34mAll users fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:42:49:4249] [34minfo[39m: [34mAll users fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:43:16:4316] [34minfo[39m: [34mDepartments fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:43:17:4317] [34minfo[39m: [34mEmployees fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:44:11:4411] [34minfo[39m: [34mDepartments fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:44:34:4434] [34minfo[39m: [34mDepartments fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:44:34:4434] [34minfo[39m: [34mAll users fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:44:34:4434] [34minfo[39m: [34mDepartment statistics fetched by System Super Admin (SA-ADMIN-01)[39m
+[24 Apr, 2026 - 12:46:41:4641] [33mwarn[39m: [33mMongoDB disconnected[39m
+[24 Apr, 2026 - 12:46:57:4657] [33mwarn[39m: [33mMongoDB disconnected[39m
+[24 Apr, 2026 - 12:47:02:472] [31merror[39m: [31mTarget audit reminder job failed: connection 12 to 159.41.229.92:27017 timed out[39m
+[24 Apr, 2026 - 12:47:02:472] [31merror[39m: [31mTarget audit reminder job failed: connection 12 to 159.41.229.92:27017 timed out[39m
+[24 Apr, 2026 - 12:47:06:476] [31merror[39m: [31mTarget audit reminder job failed: connection 12 to 159.41.229.92:27017 timed out[39m
+[24 Apr, 2026 - 12:47:21:4721] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5012ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:47:31:4731] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5207ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:47:41:4741] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5389ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:47:45:4745] [33mwarn[39m: [33mMongoDB disconnected[39m
+[24 Apr, 2026 - 12:47:50:4750] [31merror[39m: [31mTarget audit reminder job failed: connection <monitor> to 159.41.229.92:27017 closed[39m
+[24 Apr, 2026 - 12:47:56:4756] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5011ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:48:28:4828] [33mwarn[39m: [33mMongoDB disconnected[39m
+[24 Apr, 2026 - 12:48:33:4833] [31merror[39m: [31mTarget audit reminder job failed: connection 22 to [64:ff9b::9f29:e55c]:27017 timed out[39m
+[24 Apr, 2026 - 12:48:36:4836] [31merror[39m: [31mTarget audit reminder job failed: connection 22 to [64:ff9b::9f29:e55c]:27017 timed out[39m
+[24 Apr, 2026 - 12:48:47:4847] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5536ms (connectTimeoutMS: 5000)[39m
+[24 Apr, 2026 - 12:48:47:4847] [33mwarn[39m: [33mMongoDB disconnected[39m
+[24 Apr, 2026 - 12:48:47:4847] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-01.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:48:47:4847] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-01.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:48:56:4856] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:06:496] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:16:4916] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:26:4926] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 12:49:36:4936] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
+[24 Apr, 2026 - 13:18:32:1832] [33mwarn[39m: [33mMongoDB disconnected[39m
+[24 Apr, 2026 - 14:59:15:5915] [33mwarn[39m: [33mMongoDB disconnected[39m
+[24 Apr, 2026 - 15:00:22:022] [33mwarn[39m: [33mMongoDB disconnected[39m
+[12 May, 2026 - 14:33:01:331] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[12 May, 2026 - 14:33:04:334] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-00.knfen.mongodb.net:27017/test[39m
+[12 May, 2026 - 14:36:21:3621] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[12 May, 2026 - 14:36:25:3625] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-00.knfen.mongodb.net:27017/test[39m
+[12 May, 2026 - 14:37:05:375] [34minfo[39m: [34mAll users fetched by System Super Admin (SA-ADMIN-01)[39m
+[12 May, 2026 - 14:39:35:3935] [34minfo[39m: [34mDepartments fetched by System Super Admin (SA-ADMIN-01)[39m
+[12 May, 2026 - 14:39:35:3935] [34minfo[39m: [34mEmployees fetched by System Super Admin (SA-ADMIN-01)[39m
+[12 May, 2026 - 14:40:57:4057] [34minfo[39m: [34mAll users fetched by System Super Admin (SA-ADMIN-01)[39m
+[12 May, 2026 - 14:52:00:520] [34minfo[39m: [34mDepartments fetched by System Super Admin (SA-ADMIN-01)[39m
+[12 May, 2026 - 14:52:01:521] [34minfo[39m: [34mEmployees fetched by System Super Admin (SA-ADMIN-01)[39m
+[12 May, 2026 - 14:54:36:5436] [34minfo[39m: [34mAll users fetched by System Super Admin (SA-ADMIN-01)[39m
+[12 May, 2026 - 14:54:50:5450] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[12 May, 2026 - 14:54:56:5456] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m
+[12 May, 2026 - 14:54:58:5458] [34minfo[39m: [34mAttempting to connect to MongoDB (1/3): mongodb+srv://***@cluster0.knfen.mongodb.net/?appName=Cluster0[39m
+[12 May, 2026 - 14:55:01:551] [34minfo[39m: [34m✅ MongoDB Connected Successfully: cluster0-shard-00-01.knfen.mongodb.net:27017/test[39m

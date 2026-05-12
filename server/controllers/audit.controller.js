@@ -868,6 +868,15 @@ export const shareAuditByEmail = asyncHandler(async (req, res) => {
             </tbody>
           </table>
         </div>
+
+        <div style="padding: 16px 24px; text-align: center; border-top: 1px solid #e5e7eb; background-color: #f9fafb;">
+          <a href="${EVN.CLIENT_URL}" style="display: inline-block; padding: 12px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            Login to Dashboard
+          </a>
+          <p style="margin: 12px 0 0 0; font-size: 12px; color: #6b7280;">
+            Click the button above to view full history and manage your audits.
+          </p>
+        </div>
       </div>
 
       <p style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center;">

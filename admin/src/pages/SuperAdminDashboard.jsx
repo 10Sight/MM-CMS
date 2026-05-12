@@ -51,6 +51,7 @@ import {
   Legend,
   BarChart,
   Bar,
+  LabelList,
 } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -372,7 +373,7 @@ export default function SuperAdminDashboard() {
   const monthlyPercentageData = useMemo(() => {
     return dashboardMetrics.map(m => ({
       month: m.month,
-      "Overall": m.target > 0 ? Math.round((m.actual / m.target) * 100) : 0,
+      "Overall": m.target > 0 ? Math.min(100, Math.round((m.actual / m.target) * 100)) : 0,
       actual: m.actual,
       plan: m.target
     }));
@@ -847,8 +848,12 @@ export default function SuperAdminDashboard() {
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
                   <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={25} />
-                  <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={25} />
+                  <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={25}>
+                    <LabelList dataKey="target" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
+                  <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={25}>
+                    <LabelList dataKey="actual" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -881,8 +886,12 @@ export default function SuperAdminDashboard() {
                   <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
                   <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20}>
+                    <LabelList dataKey="Plan" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
+                  <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}>
+                    <LabelList dataKey="Actual" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -906,7 +915,9 @@ export default function SuperAdminDashboard() {
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(val) => `${val}%`} />
-                  <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40} />
+                  <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40}>
+                    <LabelList dataKey="failureRate" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}%`} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -941,10 +952,18 @@ export default function SuperAdminDashboard() {
                   <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} domain={[0, 100]} />
                   <Tooltip formatter={(value) => `${value}%`} />
                   <Legend />
-                  <Bar dataKey="Plant Head" stackId="a" fill="#eab308" />
-                  <Bar dataKey="HOD" stackId="a" fill="#f97316" />
-                  <Bar dataKey="Shift Incharge" stackId="a" fill="#10b981" />
-                  <Bar dataKey="Team Leader" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Plant Head" stackId="a" fill="#eab308">
+                    <LabelList dataKey="Plant Head" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="HOD" stackId="a" fill="#f97316">
+                    <LabelList dataKey="HOD" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="Shift Incharge" stackId="a" fill="#10b981">
+                    <LabelList dataKey="Shift Incharge" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="Team Leader" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="Team Leader" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -979,7 +998,9 @@ export default function SuperAdminDashboard() {
                       name={proc} 
                       stackId="p" 
                       fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]} 
-                    />
+                    >
+                      <LabelList dataKey={`processes.${proc}`} position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
+                    </Bar>
                   ));
                 })()}
               </BarChart>
@@ -1019,8 +1040,12 @@ export default function SuperAdminDashboard() {
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
                   <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="Plan" name="Plan" fill="#0f172a" radius={[4, 4, 0, 0]} barSize={25} />
-                  <Bar dataKey="Actual" name="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={25} />
+                  <Bar dataKey="Plan" name="Plan" fill="#0f172a" radius={[4, 4, 0, 0]} barSize={25}>
+                    <LabelList dataKey="Plan" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
+                  <Bar dataKey="Actual" name="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={25}>
+                    <LabelList dataKey="Actual" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1059,10 +1084,18 @@ export default function SuperAdminDashboard() {
                     formatter={(value) => `${value}%`}
                   />
                   <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="Plant Head" stackId="role" fill="#eab308" barSize={35} />
-                  <Bar dataKey="Hod" stackId="role" fill="#f97316" barSize={35} />
-                  <Bar dataKey="Shift Incharge" stackId="role" fill="#94a3b8" barSize={35} />
-                  <Bar dataKey="Team Leader" stackId="role" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={35} />
+                  <Bar dataKey="Plant Head" stackId="role" fill="#eab308" barSize={35}>
+                    <LabelList dataKey="Plant Head" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="Hod" stackId="role" fill="#f97316" barSize={35}>
+                    <LabelList dataKey="Hod" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="Shift Incharge" stackId="role" fill="#94a3b8" barSize={35}>
+                    <LabelList dataKey="Shift Incharge" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="Team Leader" stackId="role" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={35}>
+                    <LabelList dataKey="Team Leader" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1099,7 +1132,7 @@ export default function SuperAdminDashboard() {
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     formatter={(value, name) => {
-                      if (name === "Overall") return [`${value}%`, "Completion Rate"];
+                      if (name === "Completion %") return [`${value}%`, "Completion Rate"];
                       return [value, name];
                     }}
                   />
@@ -1110,7 +1143,9 @@ export default function SuperAdminDashboard() {
                     fill="#f97316" 
                     radius={[4, 4, 0, 0]}
                     barSize={40}
-                  />
+                  >
+                    <LabelList dataKey="Overall" position="top" style={{ fontSize: '12px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}%`} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1138,17 +1173,23 @@ export default function SuperAdminDashboard() {
                     dataKey="Pass"
                     fill={CHART_COLORS.success}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                   <Bar
                     dataKey="Fail"
                     fill={CHART_COLORS.error}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                   <Bar
                     dataKey="NA"
                     fill={CHART_COLORS.neutral}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="NA" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1306,7 +1347,9 @@ export default function SuperAdminDashboard() {
                   cursor="pointer"
                   onClick={(data) => handleExportClick(data, 'critical')}
                   radius={[0, 0, 0, 0]}
-                />
+                >
+                  <LabelList dataKey="Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
+                </Bar>
                 <Bar
                   dataKey="Non-Critical Failure"
                   fill="#f43f5e"
@@ -1315,7 +1358,9 @@ export default function SuperAdminDashboard() {
                   cursor="pointer"
                   onClick={(data) => handleExportClick(data, 'non-critical')}
                   radius={[0, 4, 4, 0]}
-                />
+                >
+                  <LabelList dataKey="Non-Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
+                </Bar>
                 <Bar
                   dataKey="Pass"
                   fill={CHART_COLORS.success}
@@ -1323,7 +1368,9 @@ export default function SuperAdminDashboard() {
                   name="Pass Answers"
                   opacity={0.3}
                   radius={[0, 0, 0, 0]}
-                />
+                >
+                  <LabelList dataKey="Pass" position="inside" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

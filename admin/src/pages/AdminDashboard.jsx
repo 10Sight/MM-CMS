@@ -13,6 +13,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  LabelList,
 } from "recharts";
 import { startOfWeek, startOfMonth, startOfYear, format } from "date-fns";
 import {
@@ -908,8 +909,12 @@ export default function AdminDashboard() {
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
                   <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={25} />
-                  <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={25} />
+                  <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={25}>
+                    <LabelList dataKey="target" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
+                  <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={25}>
+                    <LabelList dataKey="actual" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -942,8 +947,12 @@ export default function AdminDashboard() {
                   <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
                   <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20}>
+                    <LabelList dataKey="Plan" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
+                  <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}>
+                    <LabelList dataKey="Actual" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -967,7 +976,9 @@ export default function AdminDashboard() {
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(val) => `${val}%`} />
-                  <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40} />
+                  <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40}>
+                    <LabelList dataKey="failureRate" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}%`} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1002,10 +1013,18 @@ export default function AdminDashboard() {
                   <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} domain={[0, 100]} />
                   <Tooltip formatter={(value) => `${value}%`} />
                   <Legend />
-                  <Bar dataKey="Plant Head" stackId="a" fill="#eab308" />
-                  <Bar dataKey="HOD" stackId="a" fill="#f97316" />
-                  <Bar dataKey="Shift Incharge" stackId="a" fill="#10b981" />
-                  <Bar dataKey="Team Leader" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Plant Head" stackId="a" fill="#eab308">
+                    <LabelList dataKey="Plant Head" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="HOD" stackId="a" fill="#f97316">
+                    <LabelList dataKey="HOD" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="Shift Incharge" stackId="a" fill="#10b981">
+                    <LabelList dataKey="Shift Incharge" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
+                  <Bar dataKey="Team Leader" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="Team Leader" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1040,7 +1059,9 @@ export default function AdminDashboard() {
                       name={proc} 
                       stackId="p" 
                       fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]} 
-                    />
+                    >
+                      <LabelList dataKey={`processes.${proc}`} position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
+                    </Bar>
                   ));
                 })()}
               </BarChart>
@@ -1091,17 +1112,23 @@ export default function AdminDashboard() {
                     dataKey="Pass"
                     fill={CHART_COLORS.success}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                   <Bar
                     dataKey="Fail"
                     fill={CHART_COLORS.error}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                   <Bar
                     dataKey="NA"
                     fill={CHART_COLORS.neutral}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="NA" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1234,9 +1261,15 @@ export default function AdminDashboard() {
                   }}
                 />
                 <Legend verticalAlign="top" height={36}/>
-                <Bar dataKey="Layer 1" fill="#0ea5e9" stackId="layer" barSize={30} />
-                <Bar dataKey="Layer 2" fill="#f59e0b" stackId="layer" barSize={30} />
-                <Bar dataKey="Layer 3" fill="#10b981" stackId="layer" radius={[4, 4, 0, 0]} barSize={30} />
+                <Bar dataKey="Layer 1" fill="#0ea5e9" stackId="layer" barSize={30}>
+                  <LabelList dataKey="Layer 1" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
+                </Bar>
+                <Bar dataKey="Layer 2" fill="#f59e0b" stackId="layer" barSize={30}>
+                  <LabelList dataKey="Layer 2" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
+                </Bar>
+                <Bar dataKey="Layer 3" fill="#10b981" stackId="layer" radius={[4, 4, 0, 0]} barSize={30}>
+                  <LabelList dataKey="Layer 3" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -1290,12 +1323,16 @@ export default function AdminDashboard() {
                     dataKey="Pass"
                     fill={CHART_COLORS.success}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                   <Bar
                     dataKey="Fail"
                     fill={CHART_COLORS.error}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1344,12 +1381,16 @@ export default function AdminDashboard() {
                     dataKey="Pass"
                     fill={CHART_COLORS.success}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                   <Bar
                     dataKey="Fail"
                     fill={CHART_COLORS.error}
                     radius={[4, 4, 0, 0]}
-                  />
+                  >
+                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1420,7 +1461,9 @@ export default function AdminDashboard() {
                   name="Critical Failures"
                   cursor="pointer"
                   onClick={(data) => handleExportClick(data, 'critical')}
-                />
+                >
+                  <LabelList dataKey="Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
+                </Bar>
                 <Bar
                   dataKey="Non-Critical Failure"
                   fill="#f43f5e"
@@ -1428,14 +1471,18 @@ export default function AdminDashboard() {
                   name="Non-Critical Failures"
                   cursor="pointer"
                   onClick={(data) => handleExportClick(data, 'non-critical')}
-                />
+                >
+                  <LabelList dataKey="Non-Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
+                </Bar>
                 <Bar
                   dataKey="Pass"
                   fill={CHART_COLORS.success}
                   stackId="a"
                   name="Pass Answers"
                   opacity={0.3}
-                />
+                >
+                  <LabelList dataKey="Pass" position="inside" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
