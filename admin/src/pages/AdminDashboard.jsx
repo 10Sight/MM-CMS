@@ -77,11 +77,11 @@ export default function AdminDashboard() {
   const [selectedMachine, setSelectedMachine] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [timeframe, setTimeframe] = useState("monthly");
+  const [trendMode, setTrendMode] = useState("value"); // value | percent
 
   const [lineData, setLineData] = useState([]);
   const [lineBarData, setLineBarData] = useState([]);
   const [machineBarData, setMachineBarData] = useState([]);
-  const [pieData, setPieData] = useState([]);
   const [auditCountData, setAuditCountData] = useState([]);
 
   const { user: currentUser, activeUnitId, setActiveUnitId } = useAuth();
@@ -247,32 +247,17 @@ export default function AdminDashboard() {
 
     audits.forEach((audit) => {
       const key = getTimeframeKey(audit.date || audit.createdAt, timeframe);
-      if (!countsByPeriod[key]) countsByPeriod[key] = { Pass: 0, Fail: 0 };
+      if (!countsByPeriod[key]) countsByPeriod[key] = { Pass: 0, Fail: 0, NA: 0 };
 
-      let hasPass = false;
-      let hasFail = false;
-
-      audit.answers?.forEach((ans) => {
+      (audit.answers || []).forEach((ans) => {
         const normalized = normalizeAnswer(ans.answer);
         if (!normalized) return;
 
-        if (normalized === 'Fail') {
-          hasFail = true;
-        } else if (normalized === 'Pass') {
-          hasPass = true;
-        }
+        // Apply answer type filter at the point level if selected
+        if (answerType !== "all" && normalized.toLowerCase() !== answerType) return;
+
+        countsByPeriod[key][normalized] = (countsByPeriod[key][normalized] || 0) + 1;
       });
-
-      let overallStatus = null;
-      if (hasFail) overallStatus = 'Fail';
-      else if (hasPass) overallStatus = 'Pass';
-
-      if (!overallStatus) return; // skip audits with only NA or no answers
-
-      // Apply Answer Type filter (audit-level)
-      if (answerType !== 'all' && overallStatus.toLowerCase() !== answerType) return;
-
-      countsByPeriod[key][overallStatus] = (countsByPeriod[key][overallStatus] || 0) + 1;
     });
 
     const lineChartData = Object.keys(countsByPeriod)
@@ -281,6 +266,20 @@ export default function AdminDashboard() {
 
     setLineData(lineChartData);
   }, [audits, timeframe, answerType]);
+
+  const processedTrendData = useMemo(() => {
+    if (trendMode === "value") return lineData;
+
+    return lineData.map(item => {
+      const total = (item.Pass || 0) + (item.Fail || 0) + (item.NA || 0);
+      return {
+        ...item,
+        Pass: total > 0 ? Math.round((item.Pass / total) * 100) : 0,
+        Fail: total > 0 ? Math.round((item.Fail / total) * 100) : 0,
+        NA: total > 0 ? Math.round((item.NA / total) * 100) : 0,
+      };
+    });
+  }, [lineData, trendMode]);
 
   // Layer wise audit nos over time
   useEffect(() => {
@@ -362,48 +361,6 @@ export default function AdminDashboard() {
     setMachineBarData(Object.keys(countsByMachine).map((k) => ({ name: k, ...countsByMachine[k] })));
   }, [audits, answerType]);
 
-  // Pie Chart Data (overall Pass/Fail audits, NA excluded)
-  // Each audit is counted once based on overall result (same logic as trend):
-  // - Fail if any answer is Fail
-  // - Pass if at least one Pass and no Fail
-  useEffect(() => {
-    if (!Array.isArray(audits)) return;
-
-    let passCount = 0;
-    let failCount = 0;
-
-    audits.forEach((audit) => {
-      let hasPass = false;
-      let hasFail = false;
-
-      audit.answers?.forEach((ans) => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (!normalized) return;
-
-        if (normalized === 'Fail') {
-          hasFail = true;
-        } else if (normalized === 'Pass') {
-          hasPass = true;
-        }
-      });
-
-      let overallStatus = null;
-      if (hasFail) overallStatus = 'Fail';
-      else if (hasPass) overallStatus = 'Pass';
-
-      if (!overallStatus) return; // skip audits with only NA or no answers
-
-      if (answerType !== 'all' && overallStatus.toLowerCase() !== answerType) return;
-
-      if (overallStatus === 'Pass') passCount++;
-      else if (overallStatus === 'Fail') failCount++;
-    });
-
-    setPieData([
-      { name: "Pass", value: passCount },
-      { name: "Fail", value: failCount },
-    ]);
-  }, [audits, answerType]);
 
   const totalEmployees = useMemo(
     () => {
@@ -1074,32 +1031,55 @@ export default function AdminDashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Audit Result Trend (Pass/Fail/NA) */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
               Audit Result Trend
             </CardTitle>
+            <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
+              <Button 
+                variant={trendMode === "value" ? "secondary" : "ghost"} 
+                size="sm" 
+                className={`h-7 px-2 text-xs ${trendMode === "value" ? "bg-white shadow-sm" : ""}`}
+                onClick={() => setTrendMode("value")}
+              >
+                Numbers
+              </Button>
+              <Button 
+                variant={trendMode === "percent" ? "secondary" : "ghost"} 
+                size="sm" 
+                className={`h-7 px-2 text-xs ${trendMode === "percent" ? "bg-white shadow-sm" : ""}`}
+                onClick={() => setTrendMode("percent")}
+              >
+                Percentages
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={lineData}>
+                <BarChart data={processedTrendData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="hsl(var(--muted))"
                     opacity={0.3}
+                    vertical={false}
                   />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12 }}
-                    tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                    tickLine={false}
+                    axisLine={false}
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    unit={trendMode === "percent" ? "%" : ""}
+                    domain={trendMode === "percent" ? [0, 100] : [0, "auto"]}
                   />
                   <Tooltip
-                    formatter={(value, name) => [`${value} audits`, name]}
+                    formatter={(value, name) => [`${value}${trendMode === "percent" ? "%" : " points"}`, name]}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
@@ -1113,21 +1093,21 @@ export default function AdminDashboard() {
                     fill={CHART_COLORS.success}
                     radius={[4, 4, 0, 0]}
                   >
-                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
                   </Bar>
                   <Bar
                     dataKey="Fail"
                     fill={CHART_COLORS.error}
                     radius={[4, 4, 0, 0]}
                   >
-                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
                   </Bar>
                   <Bar
                     dataKey="NA"
                     fill={CHART_COLORS.neutral}
                     radius={[4, 4, 0, 0]}
                   >
-                    <LabelList dataKey="NA" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
+                    <LabelList dataKey="NA" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
