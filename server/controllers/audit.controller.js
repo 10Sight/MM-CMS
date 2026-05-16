@@ -218,7 +218,11 @@ export const getAudits = asyncHandler(async (req, res) => {
     const dateRange = {};
     const createdAtRange = {};
     if (start) { dateRange.$gte = start; createdAtRange.$gte = start; }
-    if (end) { dateRange.$lte = end; createdAtRange.$lte = end; }
+    if (end) { 
+      end.setHours(23, 59, 59, 999);
+      dateRange.$lte = end; 
+      createdAtRange.$lte = end; 
+    }
 
     // Combine with any existing query via $and
     const base = Object.keys(query).length ? [query] : [];
@@ -324,7 +328,7 @@ export const getAudits = asyncHandler(async (req, res) => {
       .populate("department", "name")
       .populate("auditor", "fullName emailId role designation")
       .populate("createdBy", "fullName employeeId role designation")
-      .populate({ path: "answers.question", select: "questionText templateTitle questionType", options: { lean: true } })
+      .populate({ path: "answers.question", select: "questionText templateTitle questionType category", options: { lean: true } })
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
@@ -379,7 +383,11 @@ const buildAuditQueryForExport = (req) => {
     const dateRange = {};
     const createdAtRange = {};
     if (start) { dateRange.$gte = start; createdAtRange.$gte = start; }
-    if (end) { dateRange.$lte = end; createdAtRange.$lte = end; }
+    if (end) { 
+      end.setHours(23, 59, 59, 999);
+      dateRange.$lte = end; 
+      createdAtRange.$lte = end; 
+    }
 
     const base = Object.keys(query).length ? [query] : [];
     query = {
@@ -1266,15 +1274,10 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
     }
   ]);
 
-  // 2. Optimized Template-wise Failure Aggregation
-  const templateStats = await Audit.aggregate([
+  // 2. Optimized Category-wise (Question-wise) Failure Aggregation
+  const categoryStats = await Audit.aggregate([
     { $match: matchQuery },
     { $unwind: "$answers" },
-    {
-      $match: {
-        "answers.answer": { $in: ["No", "Fail", "no", "fail"] }
-      }
-    },
     {
       $lookup: {
         from: "questions",
@@ -1288,9 +1291,23 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       $group: {
         _id: {
           ...currentGroupId,
-          template: { $ifNull: ["$q.category", "Uncategorized"] }
+          category: { $ifNull: ["$q.category", "Uncategorized"] }
         },
-        count: { $sum: 1 }
+        total: { $sum: 1 },
+        failed: {
+          $sum: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: [{ $toLower: "$answers.answer" }, "no"] },
+                  { $eq: [{ $toLower: "$answers.answer" }, "fail"] }
+                ]
+              },
+              1,
+              0
+            ]
+          }
+        }
       }
     }
   ]);
@@ -1319,7 +1336,8 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
         "Shift Incharge": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 },
         "Team Leader": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 }
       },
-      processes: {}
+      processes: {},
+      categoryTotals: {}
     };
     
     if (timeframe === 'daily') iterDate.setDate(iterDate.getDate() + 1);
@@ -1367,7 +1385,7 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
     }
   });
 
-  templateStats.forEach(stat => {
+  categoryStats.forEach(stat => {
     let dummyDate;
     if (timeframe === 'daily') dummyDate = new Date(stat._id.year, stat._id.month - 1, stat._id.day);
     else if (timeframe === 'weekly') {
@@ -1379,7 +1397,8 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
 
     const pKey = getPeriodKey(dummyDate, timeframe);
     if (periodData[pKey]) {
-      periodData[pKey].processes[stat._id.template] = stat.count;
+      periodData[pKey].processes[stat._id.category] = stat.failed;
+      periodData[pKey].categoryTotals[stat._id.category] = stat.total;
     }
   });
 
@@ -1478,7 +1497,7 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
     .populate("machine")
     .populate("process")
     .populate("auditor", "fullName designation category")
-    .populate("answers.question", "questionText templateTitle")
+    .populate("answers.question", "questionText templateTitle category")
     .sort({ date: -1 })
     .lean();
 

@@ -497,6 +497,7 @@ export default function AuditsPage() {
                       />
                     </TableHead>
                     <TableHead className="whitespace-nowrap text-xs font-semibold text-muted-foreground">S. No.</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs font-semibold text-muted-foreground">Date</TableHead>
                     <TableHead className="whitespace-nowrap text-xs font-semibold text-muted-foreground">Auditor</TableHead>
                     <TableHead className="whitespace-nowrap text-xs font-semibold text-muted-foreground">Audit title</TableHead>
                     <TableHead className="whitespace-nowrap text-xs font-semibold text-muted-foreground">Department</TableHead>
@@ -537,6 +538,9 @@ export default function AuditsPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-xs sm:text-sm text-muted-foreground">
                           {serial}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs sm:text-sm text-muted-foreground">
+                          {audit.date ? new Date(audit.date).toLocaleDateString() : 'N/A'}
                         </TableCell>
                         <TableCell className="text-xs sm:text-sm text-foreground">
                           {audit.auditor?.fullName || 'N/A'}

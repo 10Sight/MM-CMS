@@ -87,6 +87,7 @@ export default function SuperAdminDashboard() {
   const [timeframe, setTimeframe] = useState("monthly"); // daily | weekly | monthly | yearly
   const [answerType, setAnswerType] = useState("all"); // all | pass | fail | na
   const [trendMode, setTrendMode] = useState("value"); // value | percent
+  const [processTrendMode, setProcessTrendMode] = useState("value"); // value | percent
 
   const { data: statsRes } = useGetUserStatsQuery({
     unit: selectedUnit !== "all" ? selectedUnit : undefined,
@@ -455,6 +456,19 @@ export default function SuperAdminDashboard() {
       .slice(0, 10);
   }, [audits]);
 
+  const processedDashboardMetrics = useMemo(() => {
+    if (processTrendMode === "value") return dashboardMetrics;
+
+    return dashboardMetrics.map(m => {
+      const newItem = { ...m, processes: { ...(m.processes || {}) } };
+      Object.keys(newItem.processes).forEach(cat => {
+        const catTotal = m.categoryTotals?.[cat] || 0;
+        newItem.processes[cat] = catTotal > 0 ? Number(((newItem.processes[cat] / catTotal) * 100).toFixed(1)) : 0;
+      });
+      return newItem;
+    });
+  }, [dashboardMetrics, processTrendMode]);
+
   // Using specialized API result instead of heavy frontend calculation
   const failureActionPoints = useMemo(() => {
     const list = failuresRes?.data?.failures || [];
@@ -507,11 +521,11 @@ export default function SuperAdminDashboard() {
     audits.forEach(audit => {
       const auditMachine = audit.machine?.name || audit.line?.name || audit.department?.name || "N/A";
       if (auditMachine !== machineName) return;
-
+      
       // Match chart fallback logic: default to 'non-critical' if category is missing
       const auditCategory = audit.auditor?.category || "non-critical";
       if (auditCategory !== categoryType) return;
-      
+
       if (!audit.answers) return;
       audit.answers.forEach(ans => {
         const normalized = normalizeAnswer(ans.answer);
@@ -978,21 +992,50 @@ export default function SuperAdminDashboard() {
       {/* Full-width Chart 5: Process wise failures trend */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Process wise failures trend</CardTitle>
-          <CardDescription>Failures grouped by question categories (Product Identification, Process Control, etc.)</CardDescription>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Process wise failures trend
+            </div>
+            <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
+              <Button 
+                variant={processTrendMode === "value" ? "secondary" : "ghost"} 
+                size="sm" 
+                className={`h-7 px-2 text-xs ${processTrendMode === "value" ? "bg-white shadow-sm" : ""}`}
+                onClick={() => setProcessTrendMode("value")}
+              >
+                Numbers
+              </Button>
+              <Button 
+                variant={processTrendMode === "percent" ? "secondary" : "ghost"} 
+                size="sm" 
+                className={`h-7 px-2 text-xs ${processTrendMode === "percent" ? "bg-white shadow-sm" : ""}`}
+                onClick={() => setProcessTrendMode("percent")}
+              >
+                Percentages
+              </Button>
+            </div>
+          </CardTitle>
+          <CardDescription>Failures grouped by question categories (Product Identification, Process Control, etc.). {processTrendMode === 'percent' ? 'Showing % of total points.' : 'Showing absolute failure counts.'}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-96">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dashboardMetrics}>
+              <BarChart data={processedDashboardMetrics}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
+                <YAxis 
+                  tick={{ fontSize: 12 }} 
+                  unit={processTrendMode === 'percent' ? '%' : ''}
+                  domain={processTrendMode === 'percent' ? [0, 100] : [0, 'auto']}
+                />
+                <Tooltip 
+                   formatter={(val) => [`${val}${processTrendMode === 'percent' ? '%' : ''}`, 'Failures']}
+                />
                 <Legend />
                 {(() => {
                   const allProcesses = new Set();
-                  dashboardMetrics.forEach(m => {
+                  processedDashboardMetrics.forEach(m => {
                     Object.keys(m.processes || {}).forEach(p => allProcesses.add(p));
                   });
                   return Array.from(allProcesses).map((proc, idx) => (
@@ -1003,7 +1046,12 @@ export default function SuperAdminDashboard() {
                       stackId="p" 
                       fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]} 
                     >
-                      <LabelList dataKey={`processes.${proc}`} position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
+                      <LabelList 
+                        dataKey={`processes.${proc}`} 
+                        position="inside" 
+                        style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} 
+                        formatter={(val) => val > 0 ? `${val}${processTrendMode === 'percent' ? '%' : ''}` : ''} 
+                      />
                     </Bar>
                   ));
                 })()}
@@ -1328,7 +1376,6 @@ export default function SuperAdminDashboard() {
                   name="Critical Failures"
                   cursor="pointer"
                   onClick={(data) => handleExportClick(data, 'critical')}
-                  radius={[0, 0, 0, 0]}
                 >
                   <LabelList dataKey="Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
                 </Bar>
@@ -1339,7 +1386,6 @@ export default function SuperAdminDashboard() {
                   name="Non-Critical Failures"
                   cursor="pointer"
                   onClick={(data) => handleExportClick(data, 'non-critical')}
-                  radius={[0, 4, 4, 0]}
                 >
                   <LabelList dataKey="Non-Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
                 </Bar>
@@ -1349,7 +1395,6 @@ export default function SuperAdminDashboard() {
                   stackId="a"
                   name="Pass Answers"
                   opacity={0.3}
-                  radius={[0, 0, 0, 0]}
                 >
                   <LabelList dataKey="Pass" position="inside" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
                 </Bar>

@@ -49,6 +49,7 @@ export default function AdminTemplateQuestionsPage() {
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState("");
   const [newQuestionText, setNewQuestionText] = useState("");
+  const [newQuestionCategory, setNewQuestionCategory] = useState("");
   const [newQuestionImage, setNewQuestionImage] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -139,12 +140,12 @@ export default function AdminTemplateQuestionsPage() {
     }
   };
 
-  const handleUpdateCategory = async (newCategory) => {
+  const handleUpdateQuestionCategory = async (id, newCategory) => {
     try {
-      await updateTemplateQuestions({ templateTitle, category: newCategory }).unwrap();
-      toast.success("Template category updated");
+      await updateQuestion({ id, category: newCategory }).unwrap();
+      toast.success("Question category updated");
     } catch (err) {
-      toast.error(err?.data?.message || err?.message || "Failed to update template category");
+      toast.error(err?.data?.message || err?.message || "Failed to update question category");
     }
   };
 
@@ -154,6 +155,20 @@ export default function AdminTemplateQuestionsPage() {
       toast.success(`Template ${field} updated`);
     } catch (err) {
       toast.error(err?.data?.message || err?.message || `Failed to update template ${field}`);
+    }
+  };
+
+  const handleBulkUpdateCategory = async (category) => {
+    if (!category) return;
+    try {
+      // Find all questions in this template and update them
+      const updatePromises = questions.map(q => 
+        updateQuestion({ id: q._id, category }).unwrap()
+      );
+      await Promise.all(updatePromises);
+      toast.success(`Updated ${questions.length} questions to ${category}`);
+    } catch (err) {
+      toast.error("Failed to bulk update categories");
     }
   };
 
@@ -188,7 +203,7 @@ export default function AdminTemplateQuestionsPage() {
         questionType: newQuestionImage ? "image" : (first.questionType || "yes_no"),
         templateTitle,
         imageUrl: newQuestionImage,
-        category: questions[0]?.category || undefined,
+        category: newQuestionCategory || questions[0]?.category || undefined,
         ...(departmentId ? { department: departmentId } : {}),
         ...(unitId ? { unit: unitId } : {}),
       },
@@ -198,6 +213,7 @@ export default function AdminTemplateQuestionsPage() {
       await createQuestions(payload).unwrap();
       toast.success("Question added to template");
       setNewQuestionText("");
+      setNewQuestionCategory("");
       setNewQuestionImage("");
     } catch (err) {
       toast.error(err?.data?.message || err?.message || "Failed to add question");
@@ -336,22 +352,6 @@ export default function AdminTemplateQuestionsPage() {
                </SelectContent>
              </Select>
 
-             <Select
-               value={meta.category === "Uncategorized" ? "" : meta.category}
-               onValueChange={handleUpdateCategory}
-               disabled={isUpdatingTemplate}
-             >
-               <SelectTrigger className="h-6 w-fit bg-primary/10 text-primary border-primary/20 text-xs px-2 py-0">
-                 <SelectValue placeholder="Select Category" />
-               </SelectTrigger>
-               <SelectContent>
-                 <SelectItem value="Product identification and traceability">Product identification and traceability</SelectItem>
-                 <SelectItem value="Handling of NC parts">Handling of NC parts</SelectItem>
-                 <SelectItem value="CAPA">CAPA</SelectItem>
-                 <SelectItem value="Process control">Process control</SelectItem>
-                 <SelectItem value="5'S">5'S</SelectItem>
-               </SelectContent>
-             </Select>
            </div>
          )}
       </div>
@@ -359,8 +359,25 @@ export default function AdminTemplateQuestionsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Questions in this template</CardTitle>
-          <CardDescription>
-            These questions will be used when this audit template is selected in inspections.
+          <CardDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>These questions will be used when this audit template is selected in inspections.</span>
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              <span className="text-xs font-medium whitespace-nowrap">Bulk Category:</span>
+              <Select
+                onValueChange={handleBulkUpdateCategory}
+              >
+                <SelectTrigger className="h-7 w-[180px] text-xs">
+                  <SelectValue placeholder="Apply to all questions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Product identification and traceability">Product identification and traceability</SelectItem>
+                  <SelectItem value="Handling of NC parts">Handling of NC parts</SelectItem>
+                  <SelectItem value="CAPA">CAPA</SelectItem>
+                  <SelectItem value="Process control">Process control</SelectItem>
+                  <SelectItem value="5'S">5'S</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -374,6 +391,22 @@ export default function AdminTemplateQuestionsPage() {
                     disabled={isCreating}
                     className="flex-1"
                   />
+
+                  <Select
+                    value={newQuestionCategory}
+                    onValueChange={setNewQuestionCategory}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Product identification and traceability">Product identification and traceability</SelectItem>
+                      <SelectItem value="Handling of NC parts">Handling of NC parts</SelectItem>
+                      <SelectItem value="CAPA">CAPA</SelectItem>
+                      <SelectItem value="Process control">Process control</SelectItem>
+                      <SelectItem value="5'S">5'S</SelectItem>
+                    </SelectContent>
+                  </Select>
 
                 <div className="flex items-center gap-2">
                   <label className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9">
@@ -453,6 +486,24 @@ export default function AdminTemplateQuestionsPage() {
                           <p className="font-medium leading-snug">
                             {idx + 1}. {q.questionText}
                           </p>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={q.category || ""}
+                              onValueChange={(val) => handleUpdateQuestionCategory(q._id, val)}
+                              disabled={isUpdating}
+                            >
+                              <SelectTrigger className="h-6 w-fit bg-primary/5 text-primary border-primary/10 text-[10px] px-2 py-0">
+                                <SelectValue placeholder="Set Category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Product identification and traceability">Product identification and traceability</SelectItem>
+                                <SelectItem value="Handling of NC parts">Handling of NC parts</SelectItem>
+                                <SelectItem value="CAPA">CAPA</SelectItem>
+                                <SelectItem value="Process control">Process control</SelectItem>
+                                <SelectItem value="5'S">5'S</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       )}
                     </div>
