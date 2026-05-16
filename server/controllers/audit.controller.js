@@ -1215,41 +1215,53 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
     },
     { $unwind: { path: "$auditorData", preserveNullAndEmptyArrays: true } },
     {
+      $addFields: {
+        auditTotalPoints: { $size: "$answers" },
+        auditFailedPoints: {
+          $size: {
+            $filter: {
+              input: "$answers",
+              as: "ans",
+              cond: {
+                $or: [
+                  { $eq: [{ $toLower: "$$ans.answer" }, "no"] },
+                  { $eq: [{ $toLower: "$$ans.answer" }, "fail"] }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       $group: {
         _id: currentGroupId,
         actual: { $sum: 1 },
         failed: {
           $sum: {
             $cond: [
-              {
-                $gt: [
-                  {
-                    $size: {
-                      $filter: {
-                        input: "$answers",
-                        as: "ans",
-                        cond: {
-                          $or: [
-                            { $eq: [{ $toLower: "$$ans.answer" }, "no"] },
-                            { $eq: [{ $toLower: "$$ans.answer" }, "fail"] }
-                          ]
-                        }
-                      }
-                    }
-                  },
-                  0
-                ]
-              },
+              { $gt: ["$auditFailedPoints", 0] },
               1,
               0
             ]
           }
         },
+        totalPoints: { $sum: "$auditTotalPoints" },
+        failedPoints: { $sum: "$auditFailedPoints" },
         // Group by designation for layer stats
         plantHeadActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, 1, 0] } },
         hodActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, 1, 0] } },
         shiftInchargeActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, 1, 0] } },
-        teamLeaderActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, 1, 0] } }
+        teamLeaderActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, 1, 0] } },
+        // NEW: Layer point counts
+        plantHeadTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, "$auditTotalPoints", 0] } },
+        plantHeadFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, "$auditFailedPoints", 0] } },
+        hodTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, "$auditTotalPoints", 0] } },
+        hodFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, "$auditFailedPoints", 0] } },
+        shiftInchargeTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, "$auditTotalPoints", 0] } },
+        shiftInchargeFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, "$auditFailedPoints", 0] } },
+        teamLeaderTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditTotalPoints", 0] } },
+        teamLeaderFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditFailedPoints", 0] } }
       }
     }
   ]);
@@ -1276,7 +1288,7 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       $group: {
         _id: {
           ...currentGroupId,
-          template: { $ifNull: ["$q.templateTitle", "Uncategorized"] }
+          template: { $ifNull: ["$q.category", "Uncategorized"] }
         },
         count: { $sum: 1 }
       }
@@ -1299,11 +1311,13 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       target: 0,
       actual: 0,
       failed: 0,
+      totalPoints: 0,
+      failedPoints: 0,
       layers: {
-        "Plant Head": { plan: 0, actual: 0 },
-        "HOD": { plan: 0, actual: 0 },
-        "Shift Incharge": { plan: 0, actual: 0 },
-        "Team Leader": { plan: 0, actual: 0 }
+        "Plant Head": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 },
+        "HOD": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 },
+        "Shift Incharge": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 },
+        "Team Leader": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 }
       },
       processes: {}
     };
@@ -1332,10 +1346,24 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
     if (periodData[pKey]) {
       periodData[pKey].actual = stat.actual;
       periodData[pKey].failed = stat.failed;
+      periodData[pKey].totalPoints = stat.totalPoints;
+      periodData[pKey].failedPoints = stat.failedPoints;
+
       periodData[pKey].layers["Plant Head"].actual = stat.plantHeadActual;
+      periodData[pKey].layers["Plant Head"].totalPoints = stat.plantHeadTotalPoints;
+      periodData[pKey].layers["Plant Head"].failedPoints = stat.plantHeadFailedPoints;
+
       periodData[pKey].layers["HOD"].actual = stat.hodActual;
+      periodData[pKey].layers["HOD"].totalPoints = stat.hodTotalPoints;
+      periodData[pKey].layers["HOD"].failedPoints = stat.hodFailedPoints;
+
       periodData[pKey].layers["Shift Incharge"].actual = stat.shiftInchargeActual;
+      periodData[pKey].layers["Shift Incharge"].totalPoints = stat.shiftInchargeTotalPoints;
+      periodData[pKey].layers["Shift Incharge"].failedPoints = stat.shiftInchargeFailedPoints;
+
       periodData[pKey].layers["Team Leader"].actual = stat.teamLeaderActual;
+      periodData[pKey].layers["Team Leader"].totalPoints = stat.teamLeaderTotalPoints;
+      periodData[pKey].layers["Team Leader"].failedPoints = stat.teamLeaderFailedPoints;
     }
   });
 
@@ -1484,6 +1512,7 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
           question: ans.question?.questionText || "Unknown",
           questionId: qId,
           template: ans.question?.templateTitle || "General",
+          category: ans.question?.category || "Uncategorized",
           answer: ans.answer,
           remark: ans.remark,
           photos: ans.photos,

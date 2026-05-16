@@ -34,6 +34,7 @@ export default function AdminCreateTemplatePage() {
   const [selectedLine, setSelectedLine] = useState("");
   const [selectedMachine, setSelectedMachine] = useState("");
   const [templateTitle, setTemplateTitle] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
 
   // Admin-configurable form settings for Line / Machine labels & visibility
   const [formSettings, setFormSettings] = useState({
@@ -230,6 +231,7 @@ export default function AdminCreateTemplatePage() {
           templateTitle: templateTitle.trim(),
           department: selectedDepartment,
           imageUrl: q.imageUrl || undefined,
+          category: selectedCategory || undefined,
         };
 
         // Attach unit scope so templates are visible under the unit filters
@@ -440,6 +442,24 @@ export default function AdminCreateTemplatePage() {
                     </Select>
                   </div>
                 )}
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Category
+                  </Label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Product identification and traceability">Product identification and traceability</SelectItem>
+                      <SelectItem value="Handling of NC parts">Handling of NC parts</SelectItem>
+                      <SelectItem value="CAPA">CAPA</SelectItem>
+                      <SelectItem value="Process control">Process control</SelectItem>
+                      <SelectItem value="5'S">5'S</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Template Title */}

@@ -927,7 +927,7 @@ export default function AdminDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dashboardMetrics.map(m => ({
                   ...m,
-                  failureRate: m.actual > 0 ? Math.round((m.failed / m.actual) * 100) : 0
+                  failureRate: m.totalPoints > 0 ? Math.round((m.failedPoints / m.totalPoints) * 100) : 0
                 }))}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
@@ -952,22 +952,18 @@ export default function AdminDashboard() {
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={dashboardMetrics.map(m => {
-                  const ph = m.layers?.["Plant Head"]?.actual || 0;
-                  const hod = m.layers?.["HOD"]?.actual || 0;
-                  const si = m.layers?.["Shift Incharge"]?.actual || 0;
-                  const tl = m.layers?.["Team Leader"]?.actual || 0;
-                  const total = ph + hod + si + tl;
+                  const total = m.totalPoints || 0;
                   return {
                     month: m.month,
-                    "Plant Head": total > 0 ? Math.round((ph / total) * 100) : 0,
-                    "HOD": total > 0 ? Math.round((hod / total) * 100) : 0,
-                    "Shift Incharge": total > 0 ? Math.round((si / total) * 100) : 0,
-                    "Team Leader": total > 0 ? Math.round((tl / total) * 100) : 0,
+                    "Plant Head": total > 0 ? Math.round((m.layers?.["Plant Head"]?.failedPoints / total) * 100) : 0,
+                    "HOD": total > 0 ? Math.round((m.layers?.["HOD"]?.failedPoints / total) * 100) : 0,
+                    "Shift Incharge": total > 0 ? Math.round((m.layers?.["Shift Incharge"]?.failedPoints / total) * 100) : 0,
+                    "Team Leader": total > 0 ? Math.round((m.layers?.["Team Leader"]?.failedPoints / total) * 100) : 0,
                   };
                 })}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+                  <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip formatter={(value) => `${value}%`} />
                   <Legend />
                   <Bar dataKey="Plant Head" stackId="a" fill="#eab308">
@@ -993,7 +989,7 @@ export default function AdminDashboard() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-semibold">Process wise failures trend</CardTitle>
-          <CardDescription>Failures grouped by question templates (CAPA, 5S, etc.)</CardDescription>
+          <CardDescription>Failures grouped by question categories (Product Identification, Process Control, etc.)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-96">

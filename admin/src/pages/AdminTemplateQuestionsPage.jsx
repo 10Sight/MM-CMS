@@ -8,6 +8,12 @@ import {
   useUpdateQuestionMutation,
   useCreateQuestionsMutation,
   useUploadImageMutation,
+  useUpdateTemplateQuestionsMutation,
+  useGetDepartmentsQuery,
+  useGetLinesQuery,
+  useGetMachinesQuery,
+  useGetProcessesQuery,
+  useGetUnitsQuery,
 } from "@/store/api";
 import { FiImage, FiX } from "react-icons/fi";
 import {
@@ -17,6 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Loader from "@/components/ui/Loader";
@@ -56,6 +63,20 @@ export default function AdminTemplateQuestionsPage() {
   const [updateQuestion, { isLoading: isUpdating }] = useUpdateQuestionMutation();
   const [createQuestions, { isLoading: isCreating }] = useCreateQuestionsMutation();
   const [uploadImage] = useUploadImageMutation();
+  const [updateTemplateQuestions, { isLoading: isUpdatingTemplate }] = useUpdateTemplateQuestionsMutation();
+  
+  const { data: deptRes } = useGetDepartmentsQuery({ page: 1, limit: 1000 });
+  const { data: unitsRes } = useGetUnitsQuery();
+  const { data: linesRes } = useGetLinesQuery();
+  const { data: machinesRes } = useGetMachinesQuery();
+  const { data: processesRes } = useGetProcessesQuery();
+
+  const departments = deptRes?.data?.departments || [];
+  const units = unitsRes?.data || [];
+  const lines = linesRes?.data || [];
+  const machines = machinesRes?.data || [];
+  const processes = processesRes?.data || [];
+
   const allQuestions = useMemo(
     () => (Array.isArray(questionsRes?.data) ? questionsRes.data : []),
     [questionsRes]
@@ -70,14 +91,21 @@ export default function AdminTemplateQuestionsPage() {
     const first = questions[0];
     if (!first) return null;
     return {
-      unit: first.units?.[0]?.name || "Any",
-      department: first.department?.name || "Any",
-      machine: first.machines?.[0]?.name || "Any",
-      process: first.processes?.[0]?.name || "Any",
-    };
-  }, [questions]);
+       unit: first.units?.[0]?.name || "Any",
+       unitId: first.units?.[0]?._id || first.units?.[0] || "",
+       department: first.department?.name || "Any",
+       departmentId: first.department?._id || first.department || "",
+       machine: first.machines?.[0]?.name || "Any",
+       machineId: first.machines?.[0]?._id || first.machines?.[0] || "",
+       line: first.lines?.[0]?.name || "Any",
+       lineId: first.lines?.[0]?._id || first.lines?.[0] || "",
+       process: first.processes?.[0]?.name || "Any",
+       processId: first.processes?.[0]?._id || first.processes?.[0] || "",
+       category: first.category || "Uncategorized",
+     };
+   }, [questions]);
 
-  if (!currentUser || currentUser.role !== "admin") {
+  if (!currentUser || !["admin", "superadmin"].includes(currentUser.role)) {
     return <div>Access Denied</div>;
   }
 
@@ -108,6 +136,24 @@ export default function AdminTemplateQuestionsPage() {
       setEditingText("");
     } catch (err) {
       toast.error(err?.data?.message || err?.message || "Failed to update question");
+    }
+  };
+
+  const handleUpdateCategory = async (newCategory) => {
+    try {
+      await updateTemplateQuestions({ templateTitle, category: newCategory }).unwrap();
+      toast.success("Template category updated");
+    } catch (err) {
+      toast.error(err?.data?.message || err?.message || "Failed to update template category");
+    }
+  };
+
+  const handleUpdateTemplateContext = async (field, value) => {
+    try {
+      await updateTemplateQuestions({ templateTitle, [field]: value === "all" ? "" : value }).unwrap();
+      toast.success(`Template ${field} updated`);
+    } catch (err) {
+      toast.error(err?.data?.message || err?.message || `Failed to update template ${field}`);
     }
   };
 
@@ -142,6 +188,7 @@ export default function AdminTemplateQuestionsPage() {
         questionType: newQuestionImage ? "image" : (first.questionType || "yes_no"),
         templateTitle,
         imageUrl: newQuestionImage,
+        category: questions[0]?.category || undefined,
         ...(departmentId ? { department: departmentId } : {}),
         ...(unitId ? { unit: unitId } : {}),
       },
@@ -203,14 +250,110 @@ export default function AdminTemplateQuestionsPage() {
             All questions defined under this audit template.
           </p>
         </div>
-        {meta && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Unit: {meta.unit}</Badge>
-            <Badge variant="outline">Department: {meta.department}</Badge>
-            <Badge variant="outline">Machine: {meta.machine}</Badge>
-            <Badge variant="outline">Process: {meta.process}</Badge>
-          </div>
-        )}
+         {meta && (
+           <div className="flex flex-wrap items-center gap-2">
+             {currentUser.role === "superadmin" ? (
+               <Select
+                 value={meta.unitId || "all"}
+                 onValueChange={(val) => handleUpdateTemplateContext("unit", val)}
+                 disabled={isUpdatingTemplate}
+               >
+                 <SelectTrigger className="h-6 w-fit bg-muted text-muted-foreground border-muted-foreground/20 text-xs px-2 py-0">
+                   <SelectValue placeholder="Select Unit" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">Any Unit</SelectItem>
+                   {units.map((u) => (
+                     <SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>
+                   ))}
+                 </SelectContent>
+               </Select>
+             ) : (
+               <Badge variant="outline">Unit: {meta.unit}</Badge>
+             )}
+
+             <Select
+               value={meta.departmentId || "all"}
+               onValueChange={(val) => handleUpdateTemplateContext("department", val)}
+               disabled={isUpdatingTemplate}
+             >
+               <SelectTrigger className="h-6 w-fit bg-muted text-muted-foreground border-muted-foreground/20 text-xs px-2 py-0">
+                 <SelectValue placeholder="Select Department" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="all">Any Department</SelectItem>
+                 {departments.map((d) => (
+                   <SelectItem key={d._id} value={d._id}>{d.name}</SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+
+             <Select
+               value={meta.lineId || "all"}
+               onValueChange={(val) => handleUpdateTemplateContext("line", val)}
+               disabled={isUpdatingTemplate}
+             >
+               <SelectTrigger className="h-6 w-fit bg-muted text-muted-foreground border-muted-foreground/20 text-xs px-2 py-0">
+                 <SelectValue placeholder="Select Line" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="all">Any Line</SelectItem>
+                 {lines.map((l) => (
+                   <SelectItem key={l._id} value={l._id}>{l.name}</SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+
+             <Select
+               value={meta.machineId || "all"}
+               onValueChange={(val) => handleUpdateTemplateContext("machine", val)}
+               disabled={isUpdatingTemplate}
+             >
+               <SelectTrigger className="h-6 w-fit bg-muted text-muted-foreground border-muted-foreground/20 text-xs px-2 py-0">
+                 <SelectValue placeholder="Select Machine" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="all">Any Machine</SelectItem>
+                 {machines.map((m) => (
+                   <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+
+             <Select
+               value={meta.processId || "all"}
+               onValueChange={(val) => handleUpdateTemplateContext("process", val)}
+               disabled={isUpdatingTemplate}
+             >
+               <SelectTrigger className="h-6 w-fit bg-muted text-muted-foreground border-muted-foreground/20 text-xs px-2 py-0">
+                 <SelectValue placeholder="Select Process" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="all">Any Process</SelectItem>
+                 {processes.map((p) => (
+                   <SelectItem key={p._id} value={p._id}>{p.name}</SelectItem>
+                 ))}
+               </SelectContent>
+             </Select>
+
+             <Select
+               value={meta.category === "Uncategorized" ? "" : meta.category}
+               onValueChange={handleUpdateCategory}
+               disabled={isUpdatingTemplate}
+             >
+               <SelectTrigger className="h-6 w-fit bg-primary/10 text-primary border-primary/20 text-xs px-2 py-0">
+                 <SelectValue placeholder="Select Category" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="Product identification and traceability">Product identification and traceability</SelectItem>
+                 <SelectItem value="Handling of NC parts">Handling of NC parts</SelectItem>
+                 <SelectItem value="CAPA">CAPA</SelectItem>
+                 <SelectItem value="Process control">Process control</SelectItem>
+                 <SelectItem value="5'S">5'S</SelectItem>
+               </SelectContent>
+             </Select>
+           </div>
+         )}
       </div>
 
       <Card>
@@ -224,12 +367,13 @@ export default function AdminTemplateQuestionsPage() {
           <div className="space-y-4">
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Input
-                  placeholder="Add a new question to this template"
-                  value={newQuestionText}
-                  onChange={(e) => setNewQuestionText(e.target.value)}
-                  disabled={isCreating}
-                />
+                  <Input
+                    placeholder="Add a new question to this template"
+                    value={newQuestionText}
+                    onChange={(e) => setNewQuestionText(e.target.value)}
+                    disabled={isCreating}
+                    className="flex-1"
+                  />
 
                 <div className="flex items-center gap-2">
                   <label className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9">
@@ -305,9 +449,11 @@ export default function AdminTemplateQuestionsPage() {
                           disabled={isUpdating}
                         />
                       ) : (
-                        <p className="font-medium leading-snug">
-                          {idx + 1}. {q.questionText}
-                        </p>
+                        <div className="flex flex-col gap-1.5">
+                          <p className="font-medium leading-snug">
+                            {idx + 1}. {q.questionText}
+                          </p>
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-col gap-2">

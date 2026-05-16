@@ -199,6 +199,14 @@ export const api = createApi({
       }),
       invalidatesTags: ['Question'],
     }),
+    updateTemplateQuestions: builder.mutation({
+      query: ({ templateTitle, ...body }) => ({
+        url: `/api/questions/template/${encodeURIComponent(templateTitle)}`,
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: ['Question'],
+    }),
     // Question categories
     getQuestionCategories: builder.query({
       query: () => ({ url: '/api/question-categories' }),
@@ -392,6 +400,7 @@ export const {
   useUpdateQuestionMutation,
   useDeleteQuestionMutation,
   useDeleteTemplateQuestionsMutation,
+  useUpdateTemplateQuestionsMutation,
   useGetQuestionCategoriesQuery,
   useCreateQuestionCategoryMutation,
   useUpdateQuestionCategoryMutation,

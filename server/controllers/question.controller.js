@@ -58,6 +58,9 @@ export const createQuestion = asyncHandler(async (req, res) => {
     if (q.department) {
       base.department = q.department;
     }
+    if (q.category) {
+      base.category = q.category;
+    }
 
     if (options.length && ["mcq", "dropdown"].includes(questionType)) {
       base.options = options;
@@ -116,6 +119,7 @@ export const getQuestions = asyncHandler(async (req, res) => {
   if (machineId) andConditions.push({ machines: machineId });
   if (processId) andConditions.push({ processes: processId });
   if (unitId) andConditions.push({ units: unitId });
+  if (departmentId) andConditions.push({ department: departmentId });
 
   // Include global questions only if explicitly true (default: true)
   if (includeGlobal === undefined || includeGlobal === "true") {
@@ -247,6 +251,9 @@ export const updateQuestion = asyncHandler(async (req, res) => {
   if (req.body.department !== undefined) {
     updates.department = req.body.department || undefined;
   }
+  if (req.body.category !== undefined) {
+    updates.category = req.body.category || undefined;
+  }
 
   if (Object.keys(updates).length === 0) {
     throw new ApiError(400, "No valid fields provided to update");
@@ -288,6 +295,43 @@ export const deleteQuestionsByTemplateTitle = asyncHandler(async (req, res) => {
       200,
       { deletedCount: result.deletedCount },
       "Template questions deleted"
+    )
+  );
+});
+
+export const updateQuestionsByTemplateTitle = asyncHandler(async (req, res) => {
+  const { title } = req.params;
+  const { category, department, line, machine, process, unit } = req.body;
+
+  if (!title || typeof title !== "string") {
+    throw new ApiError(400, "Template title is required");
+  }
+
+  const updates = {};
+  if (category !== undefined) updates.category = category || undefined;
+  if (department !== undefined) updates.department = department || undefined;
+  
+  // Scoping fields are stored as arrays in the model
+  if (line !== undefined) updates.lines = line ? [line] : [];
+  if (machine !== undefined) updates.machines = machine ? [machine] : [];
+  if (process !== undefined) updates.processes = process ? [process] : [];
+  if (unit !== undefined) updates.units = unit ? [unit] : [];
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, "No valid fields provided to update");
+  }
+
+  const result = await Question.updateMany({ templateTitle: title }, { $set: updates });
+
+  logger.info(
+    `Updated ${result.modifiedCount} questions for template "${title}" with payload: ${JSON.stringify(req.body)} by user ${req.user.id}`
+  );
+
+  return res.json(
+    new ApiResponse(
+      200,
+      { modifiedCount: result.modifiedCount },
+      "Template questions updated"
     )
   );
 });

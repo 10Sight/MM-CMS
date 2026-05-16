@@ -50,6 +50,17 @@ const QuestionSchema = new mongoose.Schema(
     lines: [{ type: Schema.Types.ObjectId, ref: "Line" }],
     processes: [{ type: Schema.Types.ObjectId, ref: "Process" }],
     units: [{ type: Schema.Types.ObjectId, ref: "Unit" }],
+    category: {
+      type: String,
+      enum: [
+        "Product identification and traceability",
+        "Handling of NC parts",
+        "CAPA",
+        "Process control",
+        "5'S",
+      ],
+      trim: true,
+    },
     createdBy: { type: Schema.Types.ObjectId, ref: "Employee" }, // Admin
   },
   { timestamps: true, versionKey: false }

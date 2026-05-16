@@ -5,6 +5,7 @@ import {
   deleteQuestion,
   updateQuestion,
   deleteQuestionsByTemplateTitle,
+  updateQuestionsByTemplateTitle,
 } from "../controllers/question.controller.js";
 import { verifyJWT, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -12,6 +13,7 @@ const router = express.Router();
 
 router.post("/", verifyJWT, authorizeRoles("admin"), createQuestion);
 router.get("/", verifyJWT, getQuestions);
+router.put("/template/:title", verifyJWT, authorizeRoles("admin"), updateQuestionsByTemplateTitle);
 router.delete("/template/:title", verifyJWT, authorizeRoles("admin"), deleteQuestionsByTemplateTitle);
 router.put("/:id", verifyJWT, authorizeRoles("admin"), updateQuestion);
 router.delete("/:id", verifyJWT, authorizeRoles("admin"), deleteQuestion);

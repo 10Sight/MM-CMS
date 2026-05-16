@@ -65,74 +65,86 @@ export default function AdminManageQuestionsPage() {
     ? (activeUnitId || undefined)
     : (userUnitId || undefined);
 
-  const [lines, setLines] = useState([]);
-  const [machines, setMachines] = useState([]);
-  const [processes, setProcesses] = useState([]);
-  const [units, setUnits] = useState([]);
-  const [departments, setDepartments] = useState([]);
+
+
 
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [selectedLine, setSelectedLine] = useState("all");
   const [selectedMachine, setSelectedMachine] = useState("all");
-  const [selectedProcess, setSelectedProcess] = useState("all");
   const [selectedUnit, setSelectedUnit] = useState("all");
 
-  const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const rowsPerPage = 12;
   // Row selection for export (by template title)
   const [selectedTemplateTitles, setSelectedTemplateTitles] = useState([]);
 
+  // Search debouncing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const { data: linesRes } = useGetLinesQuery();
   const { data: machinesRes } = useGetMachinesQuery();
-  const { data: processesRes } = useGetProcessesQuery();
   const { data: unitsRes } = useGetUnitsQuery();
-  const { data: categoriesRes } = useGetQuestionCategoriesQuery();
   const { data: departmentsRes } = useGetDepartmentsQuery({ page: 1, limit: 1000, includeInactive: false });
   const [deleteTemplateQuestions] = useDeleteTemplateQuestionsMutation();
 
-  useEffect(() => {
-    setLines(linesRes?.data || []);
-    setMachines(machinesRes?.data || []);
-    setProcesses(processesRes?.data || []);
-    setUnits(unitsRes?.data || []);
-    setDepartments(departmentsRes?.data?.departments || []);
-  }, [linesRes, machinesRes, processesRes, unitsRes, departmentsRes]);
+  const lines = linesRes?.data || [];
+  const machines = machinesRes?.data || [];
+  const units = unitsRes?.data || [];
+  const departments = departmentsRes?.data?.departments || [];
 
-  // Fetch questions based on filters via RTK Query
-  const queryParams = {
+  // Fetch questions based on Unit and Dept only (Line/Machine filtered locally for speed)
+  const queryParams = useMemo(() => ({
     ...(effectiveUnitId ? { unit: effectiveUnitId } : {}),
     ...(selectedDepartment && selectedDepartment !== "all"
       ? { departmentId: selectedDepartment }
       : {}),
-    ...(selectedLine && selectedLine !== "all" ? { line: selectedLine } : {}),
-    ...(selectedMachine && selectedMachine !== "all" ? { machine: selectedMachine } : {}),
     includeGlobal: "true",
-  };
+  }), [effectiveUnitId, selectedDepartment]);
 
-  const { data: questionsRes, isLoading: questionsLoading } = useGetQuestionsQuery(queryParams);
-
-  useEffect(() => {
-    setLoading(questionsLoading);
-    if (Array.isArray(questionsRes?.data)) setQuestions(questionsRes.data);
-  }, [questionsRes, questionsLoading]);
+  const { data: questionsRes, isFetching: questionsFetching, isLoading: questionsLoading } = useGetQuestionsQuery(queryParams);
+  const questions = questionsRes?.data || [];
 
   // Reset pagination when filters change
   useEffect(() => {
     setPage(1);
-  }, [selectedDepartment, selectedLine, selectedMachine]);
+  }, [selectedDepartment, selectedLine, selectedMachine, debouncedSearchTerm]);
 
   const filteredQuestions = useMemo(() => {
-    if (!searchTerm.trim()) return questions;
-    const query = searchTerm.toLowerCase();
-    return questions.filter((q) => {
-      const text = q.questionText?.toLowerCase() || "";
-      const title = q.templateTitle?.toLowerCase() || "";
-      return text.includes(query) || title.includes(query);
-    });
-  }, [questions, searchTerm]);
+    let result = questions;
+
+    // Local filtering for Line
+    if (selectedLine !== "all") {
+      result = result.filter(q => 
+        q.lines?.some(l => (typeof l === 'object' ? l._id : l) === selectedLine)
+      );
+    }
+
+    // Local filtering for Machine
+    if (selectedMachine !== "all") {
+      result = result.filter(q => 
+        q.machines?.some(m => (typeof m === 'object' ? m._id : m) === selectedMachine)
+      );
+    }
+
+    // Search term filtering
+    if (debouncedSearchTerm.trim()) {
+      const query = debouncedSearchTerm.toLowerCase();
+      result = result.filter((q) => {
+        const text = q.questionText?.toLowerCase() || "";
+        const title = q.templateTitle?.toLowerCase() || "";
+        return text.includes(query) || title.includes(query);
+      });
+    }
+
+    return result;
+  }, [questions, selectedLine, selectedMachine, debouncedSearchTerm]);
 
   // Group questions by template title so each template appears once
   const templateGroups = useMemo(() => {
@@ -198,9 +210,6 @@ export default function AdminManageQuestionsPage() {
     startIndex + rowsPerPage
   );
 
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
 
   const unitScopeLabel = useMemo(() => {
     if (role === 'superadmin') {
@@ -246,9 +255,6 @@ export default function AdminManageQuestionsPage() {
     try {
       await deleteTemplateQuestions(templateTitle).unwrap();
       toast.success("Template deleted successfully!");
-      setQuestions((prev) =>
-        prev.filter((q) => (q.templateTitle || "Untitled template") !== templateTitle)
-      );
       setSelectedTemplateTitles((prev) => prev.filter((t) => t !== templateTitle));
     } catch (err) {
       toast.error(
@@ -343,7 +349,7 @@ export default function AdminManageQuestionsPage() {
             <Globe className="h-4 w-4" />
             {totalGlobal} global questions
           </Badge>
-          {currentUser?.role === "admin" && (
+          {["admin", "superadmin"].includes(currentUser?.role) && (
             <Button
               onClick={() => navigate("/admin/audits/create")}
               size="sm"
@@ -449,9 +455,12 @@ export default function AdminManageQuestionsPage() {
             <div>
               <CardTitle>Audit Question Templates</CardTitle>
               <CardDescription>
-                {loading
+                {questionsLoading
                   ? "Loading templates..."
                   : `Showing ${paginatedTemplates.length} of ${totalTemplates} templates`}
+                {questionsFetching && !questionsLoading && (
+                  <span className="ml-2 text-xs text-primary animate-pulse">Refreshing...</span>
+                )}
               </CardDescription>
             </div>
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
@@ -469,7 +478,7 @@ export default function AdminManageQuestionsPage() {
                 size="sm"
                 className="gap-2 whitespace-nowrap"
                 onClick={handleExportQuestions}
-                disabled={loading || !totalTemplates}
+                disabled={questionsLoading || !totalTemplates}
               >
                 <Download className="h-4 w-4" />
                 <span>Export questions</span>
@@ -478,7 +487,7 @@ export default function AdminManageQuestionsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
+          {questionsLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader />
             </div>
@@ -510,6 +519,7 @@ export default function AdminManageQuestionsPage() {
                       <TableHead>Template Title</TableHead>
                       <TableHead>Unit</TableHead>
                       <TableHead>Department</TableHead>
+                      <TableHead>Category</TableHead>
                       <TableHead>Machine</TableHead>
                       <TableHead>Process</TableHead>
                       <TableHead className="hidden md:table-cell">Created At</TableHead>
@@ -557,6 +567,17 @@ export default function AdminManageQuestionsPage() {
                           {/* Department */}
                           <TableCell className="align-top text-sm">
                             {q.department?.name || "Any"}
+                          </TableCell>
+
+                          {/* Category */}
+                          <TableCell className="align-top text-sm">
+                            {q.category ? (
+                              <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10 text-[10px]">
+                                {q.category}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
 
                           {/* Machine */}
