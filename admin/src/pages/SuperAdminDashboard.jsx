@@ -25,7 +25,6 @@ import {
   Building2,
   Filter as FilterIcon,
   TrendingUp,
-  PieChart as PieChartIcon,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -39,11 +38,6 @@ import {
 import * as XLSX from 'xlsx';
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -84,9 +78,20 @@ export default function SuperAdminDashboard() {
   const [selectedLine, setSelectedLine] = useState("all");
   const [selectedMachine, setSelectedMachine] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const getFirstDayOfCurrentMonth = () => {
+    const now = new Date();
+    return format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
+  };
+
+  const getLastDayOfCurrentMonth = () => {
+    const now = new Date();
+    return format(new Date(now.getFullYear(), now.getMonth() + 1, 0), "yyyy-MM-dd");
+  };
+
+  const [startDate, setStartDate] = useState(getFirstDayOfCurrentMonth());
+  const [endDate, setEndDate] = useState(getLastDayOfCurrentMonth());
   const [timeframe, setTimeframe] = useState("monthly"); // daily | weekly | monthly | yearly
   const [answerType, setAnswerType] = useState("all"); // all | pass | fail | na
-  const [trendMode, setTrendMode] = useState("value"); // value | percent
   const [processTrendMode, setProcessTrendMode] = useState("value"); // value | percent
 
   const { data: statsRes } = useGetUserStatsQuery({
@@ -183,6 +188,8 @@ export default function SuperAdminDashboard() {
       line: selectedLine !== "all" ? selectedLine : undefined,
       machine: selectedMachine !== "all" ? selectedMachine : undefined,
       category: selectedCategory !== "all" ? selectedCategory : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     },
     { pollingInterval: 60000 }
   );
@@ -205,6 +212,8 @@ export default function SuperAdminDashboard() {
   const { data: metricsRes, isLoading: metricsLoading } = useGetDashboardMetricsQuery({
     unit: selectedUnit !== 'all' ? selectedUnit : undefined,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
     timeframe: timeframe,
   });
 
@@ -275,98 +284,15 @@ export default function SuperAdminDashboard() {
     return format(d, "yyyy-MM-dd");
   };
 
-  const lineData = useMemo(() => {
-    if (!Array.isArray(audits)) return [];
 
-    const countsByPeriod = {};
 
-    audits.forEach((audit) => {
-      const key = getTimeframeKey(audit.date || audit.createdAt, timeframe);
-      if (!countsByPeriod[key]) countsByPeriod[key] = { Pass: 0, Fail: 0, NA: 0 };
 
-      (audit.answers || []).forEach((ans) => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (!normalized) return;
-
-        // Apply answer type filter at the point level if selected
-        if (answerType !== "all" && normalized.toLowerCase() !== answerType) return;
-
-        countsByPeriod[key][normalized] = (countsByPeriod[key][normalized] || 0) + 1;
-      });
-    });
-
-    return Object.keys(countsByPeriod)
-      .sort((a, b) => new Date(a) - new Date(b))
-      .map((period) => ({ date: period, ...countsByPeriod[period] }));
-  }, [audits, timeframe, answerType]);
-
-  const processedTrendData = useMemo(() => {
-    if (trendMode === "value") return lineData;
-
-    return lineData.map(item => {
-      const total = (item.Pass || 0) + (item.Fail || 0) + (item.NA || 0);
-      return {
-        ...item,
-        Pass: total > 0 ? Math.round((item.Pass / total) * 100) : 0,
-        Fail: total > 0 ? Math.round((item.Fail / total) * 100) : 0,
-        NA: total > 0 ? Math.round((item.NA / total) * 100) : 0,
-      };
-    });
-  }, [lineData, trendMode]);
-
-  // Layer wise audit nos over time
-  const auditCountData = useMemo(() => {
-    if (!Array.isArray(audits)) return [];
-
-    const getTimeframeKey = (date, mode) => {
-      const d = new Date(date);
-      if (mode === "daily") return format(d, "MMM dd");
-      if (mode === "weekly") return `Week ${format(d, "ww")}`;
-      if (mode === "monthly") return format(d, "MMM yy");
-      if (mode === "yearly") return format(d, "yyyy");
-      return format(d, "MMM dd");
-    };
-
-    const getLayer = (desig) => {
-      const d = (desig || "").toLowerCase();
-      if (d === "team leader" || d === "shift incharge" || d === "none" || d === "") return "Layer 1";
-      if (d === "hod") return "Layer 2";
-      if (d === "plant head") return "Layer 3";
-      return "Layer 1"; // Default any other recognized designation to Layer 1 for completeness
-    };
-
-    const countsByPeriod = {};
-    audits.forEach((audit) => {
-      const key = getTimeframeKey(audit.date || audit.createdAt, timeframe);
-      if (!countsByPeriod[key]) {
-        countsByPeriod[key] = { "Layer 1": 0, "Layer 2": 0, "Layer 3": 0 };
-      }
-      const desig = audit.auditor?.designation || audit.createdBy?.designation;
-      const layer = getLayer(desig);
-      if (layer) {
-        countsByPeriod[key][layer]++;
-      }
-    });
-
-    return Object.keys(countsByPeriod)
-      .sort((a, b) => new Date(a) - new Date(b))
-      .map((period) => ({ 
-        date: period, 
-        ...countsByPeriod[period]
-      }));
-  }, [audits, timeframe]);
-
-  // --- NEW: Layer-wise Plan vs Actual Data (Now uses backend metrics for full history) ---
   const layerWiseData = useMemo(() => {
     const layerNames = ["Plant Head", "HOD", "Shift Incharge", "Team Leader"];
     return layerNames.map(layer => {
       const totalPlan = dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.plan || 0), 0);
       const totalActual = dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.actual || 0), 0);
-      return {
-        name: layer,
-        Plan: totalPlan,
-        Actual: totalActual
-      };
+      return { name: layer, Plan: totalPlan, Actual: totalActual };
     });
   }, [dashboardMetrics]);
 
@@ -388,27 +314,7 @@ export default function SuperAdminDashboard() {
   }, [dashboardMetrics]);
 
 
-  const answerStats = useMemo(() => {
-    if (!Array.isArray(audits)) return { pass: 0, fail: 0, na: 0, total: 0 };
 
-    let pass = 0;
-    let fail = 0;
-    let na = 0;
-
-    audits.forEach((audit) => {
-      if (!audit.answers || !Array.isArray(audit.answers)) return;
-
-      audit.answers.forEach((ans) => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (normalized === "Pass") pass++;
-        else if (normalized === "Fail") fail++;
-        else if (normalized === "NA") na++;
-      });
-    });
-
-    const total = pass + fail + na; // Total answers
-    return { pass, fail, na, total };
-  }, [audits]);
 
   // --- NEW: Process Wise Failure Trend Data ---
   const processWiseFailureData = useMemo(() => {
@@ -458,7 +364,6 @@ export default function SuperAdminDashboard() {
 
   const processedDashboardMetrics = useMemo(() => {
     if (processTrendMode === "value") return dashboardMetrics;
-
     return dashboardMetrics.map(m => {
       const newItem = { ...m, processes: { ...(m.processes || {}) } };
       Object.keys(newItem.processes).forEach(cat => {
@@ -584,13 +489,7 @@ export default function SuperAdminDashboard() {
     [audits]
   );
 
-  const targetActualData = useMemo(
-    () => [
-      { name: "Target Audits", value: targetAuditsForScope },
-      { name: "Actual Audits", value: actualAuditsForScope },
-    ],
-    [targetAuditsForScope, actualAuditsForScope]
-  );
+
 
   return (
     <div className="space-y-6">
@@ -699,7 +598,7 @@ export default function SuperAdminDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-8 xl:grid-cols-9">
             {/* Unit filter */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none">Unit</label>
@@ -816,20 +715,24 @@ export default function SuperAdminDashboard() {
               </Select>
             </div>
 
-            {/* Timeframe grouping */}
+            {/* Start Date */}
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none">Timeframe</label>
-              <Select value={timeframe} onValueChange={setTimeframe}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Daily" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium leading-none">Start Date</label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+
+            {/* End Date */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">End Date</label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
 
             {/* Category Filter */}
@@ -843,6 +746,22 @@ export default function SuperAdminDashboard() {
                   <SelectItem value="all">All Categories</SelectItem>
                   <SelectItem value="critical">Critical</SelectItem>
                   <SelectItem value="non-critical">Non-Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Timeframe grouping (Group By) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none">Timeframe</label>
+              <Select value={timeframe} onValueChange={setTimeframe}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Monthly" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -865,7 +784,7 @@ export default function SuperAdminDashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip 
+                  <Tooltip
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
@@ -891,10 +810,10 @@ export default function SuperAdminDashboard() {
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
+                <BarChart
                   data={dashboardMetrics.length > 0 ? (
                     ["Plant Head", "HOD", "Shift Incharge", "Team Leader"].map(layer => {
-                      const latest = dashboardMetrics[dashboardMetrics.length - 1]; // Show latest month breakdown
+                      const latest = dashboardMetrics[dashboardMetrics.length - 1];
                       return {
                         name: layer,
                         Plan: latest?.layers?.[layer]?.plan || 0,
@@ -946,7 +865,7 @@ export default function SuperAdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Chart 4: Layer Performance Contribution */}
+        {/* Chart 4: Layer-wise Failure Distribution */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold">Layer-wise Failure Distribution</CardTitle>
@@ -998,17 +917,17 @@ export default function SuperAdminDashboard() {
               Process wise failures trend
             </div>
             <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
-              <Button 
-                variant={processTrendMode === "value" ? "secondary" : "ghost"} 
-                size="sm" 
+              <Button
+                variant={processTrendMode === "value" ? "secondary" : "ghost"}
+                size="sm"
                 className={`h-7 px-2 text-xs ${processTrendMode === "value" ? "bg-white shadow-sm" : ""}`}
                 onClick={() => setProcessTrendMode("value")}
               >
                 Numbers
               </Button>
-              <Button 
-                variant={processTrendMode === "percent" ? "secondary" : "ghost"} 
-                size="sm" 
+              <Button
+                variant={processTrendMode === "percent" ? "secondary" : "ghost"}
+                size="sm"
                 className={`h-7 px-2 text-xs ${processTrendMode === "percent" ? "bg-white shadow-sm" : ""}`}
                 onClick={() => setProcessTrendMode("percent")}
               >
@@ -1024,13 +943,13 @@ export default function SuperAdminDashboard() {
               <BarChart data={processedDashboardMetrics}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis 
-                  tick={{ fontSize: 12 }} 
+                <YAxis
+                  tick={{ fontSize: 12 }}
                   unit={processTrendMode === 'percent' ? '%' : ''}
                   domain={processTrendMode === 'percent' ? [0, 100] : [0, 'auto']}
                 />
-                <Tooltip 
-                   formatter={(val) => [`${val}${processTrendMode === 'percent' ? '%' : ''}`, 'Failures']}
+                <Tooltip
+                  formatter={(val) => [`${val}${processTrendMode === 'percent' ? '%' : ''}`, 'Failures']}
                 />
                 <Legend />
                 {(() => {
@@ -1039,18 +958,18 @@ export default function SuperAdminDashboard() {
                     Object.keys(m.processes || {}).forEach(p => allProcesses.add(p));
                   });
                   return Array.from(allProcesses).map((proc, idx) => (
-                    <Bar 
-                      key={proc} 
-                      dataKey={`processes.${proc}`} 
-                      name={proc} 
-                      stackId="p" 
-                      fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]} 
+                    <Bar
+                      key={proc}
+                      dataKey={`processes.${proc}`}
+                      name={proc}
+                      stackId="p"
+                      fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]}
                     >
-                      <LabelList 
-                        dataKey={`processes.${proc}`} 
-                        position="inside" 
-                        style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} 
-                        formatter={(val) => val > 0 ? `${val}${processTrendMode === 'percent' ? '%' : ''}` : ''} 
+                      <LabelList
+                        dataKey={`processes.${proc}`}
+                        position="inside"
+                        style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }}
+                        formatter={(val) => val > 0 ? `${val}${processTrendMode === 'percent' ? '%' : ''}` : ''}
                       />
                     </Bar>
                   ));
@@ -1067,8 +986,8 @@ export default function SuperAdminDashboard() {
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
-               <TrendingUp className="h-5 w-5" />
-               Layer wise Audit nos. of plan vs actual
+              <TrendingUp className="h-5 w-5" />
+              Layer wise Audit nos. of plan vs actual
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1076,18 +995,9 @@ export default function SuperAdminDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={layerWiseData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip 
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                  <Tooltip
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
@@ -1117,20 +1027,9 @@ export default function SuperAdminDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={contributionData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis 
-                    dataKey="month" 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis 
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12 }}
-                    unit="%"
-                    domain={[0, 100]}
-                  />
-                  <Tooltip 
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} unit="%" domain={[0, 100]} />
+                  <Tooltip
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     formatter={(value) => `${value}%`}
@@ -1153,165 +1052,7 @@ export default function SuperAdminDashboard() {
             </div>
           </CardContent>
         </Card>
-
-
-        {/* Audit trend over time (per audit Pass/Fail, like admin dashboard) */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Audit Result Trend
-            </CardTitle>
-            <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
-              <Button 
-                variant={trendMode === "value" ? "secondary" : "ghost"} 
-                size="sm" 
-                className={`h-7 px-2 text-xs ${trendMode === "value" ? "bg-white shadow-sm" : ""}`}
-                onClick={() => setTrendMode("value")}
-              >
-                Numbers
-              </Button>
-              <Button 
-                variant={trendMode === "percent" ? "secondary" : "ghost"} 
-                size="sm" 
-                className={`h-7 px-2 text-xs ${trendMode === "percent" ? "bg-white shadow-sm" : ""}`}
-                onClick={() => setTrendMode("percent")}
-              >
-                Percentages
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis 
-                    tick={{ fontSize: 12 }} 
-                    axisLine={false} 
-                    tickLine={false} 
-                    unit={trendMode === "percent" ? "%" : ""}
-                    domain={trendMode === "percent" ? [0, 100] : [0, "auto"]}
-                  />
-                  <Tooltip 
-                    formatter={(value, name) => [`${value}${trendMode === "percent" ? "%" : " points"}`, name]} 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="Pass"
-                    fill={CHART_COLORS.success}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
-                  </Bar>
-                  <Bar
-                    dataKey="Fail"
-                    fill={CHART_COLORS.error}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
-                  </Bar>
-                  <Bar
-                    dataKey="NA"
-                    fill={CHART_COLORS.neutral}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="NA" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Overall distribution (per audit Pass/Fail, like admin dashboard) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5" />
-              Overall Answer Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72 grid grid-cols-2 gap-4">
-              <div className="relative">
-                <h4 className="text-center font-medium mb-2">Pass Rate</h4>
-                <ResponsiveContainer width="100%" height="90%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Pass", value: answerStats.pass },
-                        { name: "Other", value: answerStats.total - answerStats.pass },
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      startAngle={90}
-                      endAngle={-270}
-                      dataKey="value"
-                    >
-                      <Cell fill={CHART_COLORS.success} />
-                      <Cell fill="#f3f4f6" />
-                    </Pie>
-                    <text
-                      x="50%"
-                      y="50%"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className="fill-foreground text-2xl font-bold"
-                    >
-                      {answerStats.total > 0
-                        ? `${Math.round((answerStats.pass / answerStats.total) * 100)}%`
-                        : "0%"}
-                    </text>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="relative">
-                <h4 className="text-center font-medium mb-2">Fail Rate</h4>
-                <ResponsiveContainer width="100%" height="90%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Fail", value: answerStats.fail },
-                        { name: "Other", value: answerStats.total - answerStats.fail },
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      startAngle={90}
-                      endAngle={-270}
-                      dataKey="value"
-                    >
-                      <Cell fill={CHART_COLORS.error} />
-                      <Cell fill="#f3f4f6" />
-                    </Pie>
-                    <text
-                      x="50%"
-                      y="50%"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className="fill-foreground text-2xl font-bold"
-                    >
-                      {answerStats.total > 0
-                        ? `${Math.round((answerStats.fail / answerStats.total) * 100)}%`
-                        : "0%"}
-                    </text>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
-
 
       {/* Process Wise Failure Trend */}
       <Card>

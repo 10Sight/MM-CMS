@@ -58,6 +58,7 @@ const QuestionSchema = new mongoose.Schema(
         "CAPA",
         "Process control",
         "5'S",
+        "Safety",
       ],
       trim: true,
     },

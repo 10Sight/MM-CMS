@@ -521,6 +521,7 @@ export default function AdminCreateTemplatePage() {
                                 <SelectItem value="CAPA">CAPA</SelectItem>
                                 <SelectItem value="Process control">Process control</SelectItem>
                                 <SelectItem value="5'S">5'S</SelectItem>
+                                <SelectItem value="Safety">Safety</SelectItem>
                               </SelectContent>
                             </Select>
 

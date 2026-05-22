@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -10,15 +8,11 @@ import {
   Legend,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   LabelList,
 } from "recharts";
 import { startOfWeek, startOfMonth, startOfYear, format } from "date-fns";
 import {
   Filter,
-  PieChart as PieChartIcon,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -76,14 +70,20 @@ export default function AdminDashboard() {
   const [selectedLine, setSelectedLine] = useState("all");
   const [selectedMachine, setSelectedMachine] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [timeframe, setTimeframe] = useState("monthly");
-  const [trendMode, setTrendMode] = useState("value"); // value | percent
-  const [processTrendMode, setProcessTrendMode] = useState("value"); // value | percent
+  const getFirstDayOfCurrentMonth = () => {
+    const now = new Date();
+    return format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
+  };
 
-  const [lineData, setLineData] = useState([]);
-  const [lineBarData, setLineBarData] = useState([]);
-  const [machineBarData, setMachineBarData] = useState([]);
-  const [auditCountData, setAuditCountData] = useState([]);
+  const getLastDayOfCurrentMonth = () => {
+    const now = new Date();
+    return format(new Date(now.getFullYear(), now.getMonth() + 1, 0), "yyyy-MM-dd");
+  };
+
+  const [startDate, setStartDate] = useState(getFirstDayOfCurrentMonth());
+  const [endDate, setEndDate] = useState(getLastDayOfCurrentMonth());
+  const [timeframe, setTimeframe] = useState("monthly"); // daily | weekly | monthly | yearly
+  const [processTrendMode, setProcessTrendMode] = useState("value"); // value | percent
 
   const { user: currentUser, activeUnitId, setActiveUnitId } = useAuth();
   const userUnitId = currentUser?.unit?._id || currentUser?.unit || '';
@@ -170,6 +170,8 @@ export default function AdminDashboard() {
       line: selectedLine !== 'all' ? selectedLine : undefined,
       machine: selectedMachine !== 'all' ? selectedMachine : undefined,
       category: selectedCategory !== "all" ? selectedCategory : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
     },
     { pollingInterval: 60000 }
   );
@@ -230,137 +232,19 @@ export default function AdminDashboard() {
   const { data: metricsRes, isLoading: metricsLoading } = useGetDashboardMetricsQuery({
     unit: effectiveUnitId !== 'all' ? effectiveUnitId : undefined,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
     timeframe: timeframe,
   });
 
   const dashboardMetrics = metricsRes?.data || [];
+  const totalTargetFromMetrics = dashboardMetrics.reduce((sum, m) => sum + (m.target || 0), 0);
+  const totalActualFromApi = auditsRes?.data?.pagination?.totalRecords ?? auditsRes?.data?.total ?? audits.length;
+  const completionPct = totalTargetFromMetrics > 0 ? Math.round((totalActualFromApi / totalTargetFromMetrics) * 100) : 0;
   // RTK Query polling handles refresh; no manual interval needed
 
 
-  // Line Chart Data (Pass/Fail audits over time)
-  // Each audit is counted once per period based on overall result:
-  // - Pass: at least one Pass answer and no Fail answers
-  // - Fail: at least one Fail answer (NA answers are ignored)
-  useEffect(() => {
-    if (!Array.isArray(audits)) return;
 
-    const countsByPeriod = {};
-
-    audits.forEach((audit) => {
-      const key = getTimeframeKey(audit.date || audit.createdAt, timeframe);
-      if (!countsByPeriod[key]) countsByPeriod[key] = { Pass: 0, Fail: 0, NA: 0 };
-
-      (audit.answers || []).forEach((ans) => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (!normalized) return;
-
-        // Apply answer type filter at the point level if selected
-        if (answerType !== "all" && normalized.toLowerCase() !== answerType) return;
-
-        countsByPeriod[key][normalized] = (countsByPeriod[key][normalized] || 0) + 1;
-      });
-    });
-
-    const lineChartData = Object.keys(countsByPeriod)
-      .sort((a, b) => new Date(a) - new Date(b))
-      .map((period) => ({ date: period, ...countsByPeriod[period] }));
-
-    setLineData(lineChartData);
-  }, [audits, timeframe, answerType]);
-
-  const processedTrendData = useMemo(() => {
-    if (trendMode === "value") return lineData;
-
-    return lineData.map(item => {
-      const total = (item.Pass || 0) + (item.Fail || 0) + (item.NA || 0);
-      return {
-        ...item,
-        Pass: total > 0 ? Math.round((item.Pass / total) * 100) : 0,
-        Fail: total > 0 ? Math.round((item.Fail / total) * 100) : 0,
-        NA: total > 0 ? Math.round((item.NA / total) * 100) : 0,
-      };
-    });
-  }, [lineData, trendMode]);
-
-  // Layer wise audit nos over time
-  useEffect(() => {
-    if (!Array.isArray(audits)) return;
-
-    const countsByPeriod = {};
-    const getLayer = (desig) => {
-      const d = (desig || "").toLowerCase();
-      if (d === "team leader" || d === "shift incharge" || d === "none" || d === "") return "Layer 1";
-      if (d === "hod") return "Layer 2";
-      if (d === "plant head") return "Layer 3";
-      return "Layer 1"; // Default any other recognized designation to Layer 1 for completeness
-    };
-
-    audits.forEach((audit) => {
-      const key = getTimeframeKey(audit.date || audit.createdAt, timeframe);
-      if (!countsByPeriod[key]) {
-        countsByPeriod[key] = { "Layer 1": 0, "Layer 2": 0, "Layer 3": 0 };
-      }
-      
-      const desig = audit.auditor?.designation || audit.createdBy?.designation;
-      const layer = getLayer(desig);
-      
-      if (layer) {
-        countsByPeriod[key][layer]++;
-      }
-    });
-
-    const totalAuditsSeries = Object.keys(countsByPeriod)
-      .sort((a, b) => new Date(a) - new Date(b))
-      .map((period) => ({ 
-        date: period, 
-        ...countsByPeriod[period]
-      }));
-
-    setAuditCountData(totalAuditsSeries);
-  }, [audits, timeframe]);
-
-  // Bar Chart Data
-  // Line-wise Bar Chart Data: total audits Pass/Fail per line
-  useEffect(() => {
-    if (!Array.isArray(audits)) return;
-
-    const countsByLine = {};
-    audits.forEach((audit) => {
-      const lineName = audit.line?.name || "N/A";
-      if (!countsByLine[lineName]) countsByLine[lineName] = { Pass: 0, Fail: 0 };
-
-      const overallStatus = getAuditOverallStatus(audit);
-      if (!overallStatus) return; // only NA/no answers
-
-      if (answerType !== 'all' && overallStatus.toLowerCase() !== answerType) return;
-
-      countsByLine[lineName][overallStatus] =
-        (countsByLine[lineName][overallStatus] || 0) + 1;
-    });
-
-    setLineBarData(Object.keys(countsByLine).map((k) => ({ name: k, ...countsByLine[k] })));
-  }, [audits, answerType]);
-
-  // Machine-wise Bar Chart Data: total audits Pass/Fail per machine
-  useEffect(() => {
-    if (!Array.isArray(audits)) return;
-
-    const countsByMachine = {};
-    audits.forEach((audit) => {
-      const machineName = audit.machine?.name || "N/A";
-      if (!countsByMachine[machineName]) countsByMachine[machineName] = { Pass: 0, Fail: 0 };
-
-      const overallStatus = getAuditOverallStatus(audit);
-      if (!overallStatus) return;
-
-      if (answerType !== 'all' && overallStatus.toLowerCase() !== answerType) return;
-
-      countsByMachine[machineName][overallStatus] =
-        (countsByMachine[machineName][overallStatus] || 0) + 1;
-    });
-
-    setMachineBarData(Object.keys(countsByMachine).map((k) => ({ name: k, ...countsByMachine[k] })));
-  }, [audits, answerType]);
 
 
   const totalEmployees = useMemo(
@@ -408,35 +292,7 @@ export default function AdminDashboard() {
     };
   }, [departments, lines, machines, employees, audits]);
 
-  const targetActualData = useMemo(
-    () => [
-      { name: 'Target Audits', value: aggregatedCounts.targetAudits || 0 },
-      { name: 'Actual Audits', value: aggregatedCounts.actualAudits || 0 },
-    ],
-    [aggregatedCounts.targetAudits, aggregatedCounts.actualAudits]
-  );
 
-  const answerStats = useMemo(() => {
-    if (!Array.isArray(audits)) return { pass: 0, fail: 0, na: 0, total: 0 };
-
-    let pass = 0;
-    let fail = 0;
-    let na = 0;
-
-    audits.forEach((audit) => {
-      if (!audit.answers || !Array.isArray(audit.answers)) return;
-
-      audit.answers.forEach((ans) => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (normalized === "Pass") pass++;
-        else if (normalized === "Fail") fail++;
-        else if (normalized === "NA") na++;
-      });
-    });
-
-    const total = pass + fail + na; // Total answers
-    return { pass, fail, na, total };
-  }, [audits]);
 
   // --- NEW: Process Wise Failure Trend Data ---
   const processWiseFailureData = useMemo(() => {
@@ -484,10 +340,9 @@ export default function AdminDashboard() {
       .slice(0, 10);
   }, [audits]);
 
-  // Processed data for Chart 5 (Process wise failures trend over time)
+  // Processed data for Process wise failures trend chart (value vs percent mode)
   const processedDashboardMetrics = useMemo(() => {
     if (processTrendMode === "value") return dashboardMetrics;
-
     return dashboardMetrics.map(m => {
       const newItem = { ...m, processes: { ...(m.processes || {}) } };
       Object.keys(newItem.processes).forEach(cat => {
@@ -624,14 +479,14 @@ export default function AdminDashboard() {
         {[
           {
             title: "Total Audits",
-            value: audits.length,
+            value: totalActualFromApi,
             icon: BarChart3,
             description: "Actual audits for selected filters",
-            trend: timeframe.charAt(0).toUpperCase() + timeframe.slice(1),
+            trend: timeframe === "daily" ? "Daily View" : timeframe === "weekly" ? "Weekly View" : timeframe === "monthly" ? "Monthly View" : "Yearly View",
           },
           {
             title: "Total Target Audits",
-            value: aggregatedCounts.targetAudits,
+            value: totalTargetFromMetrics,
             icon: TrendingUp,
             description: "Target audits for auditors in this unit",
             trend: "Configured",
@@ -667,7 +522,7 @@ export default function AdminDashboard() {
         ].map((metric) => {
           const Icon = metric.icon;
           const isTargetMetric = metric.title === "Total Target Audits";
-          const completionPercent = aggregatedCounts.completionPercent ?? 0;
+          const completionPercent = completionPct;
           const clampedCompletion = Math.max(0, Math.min(100, completionPercent));
 
           return (
@@ -694,7 +549,7 @@ export default function AdminDashboard() {
                       />
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      {aggregatedCounts.actualAudits} actual / {aggregatedCounts.targetAudits || 0} target audits
+                      {totalActualFromApi} actual / {totalTargetFromMetrics || 0} target audits
                     </p>
                   </div>
                 )}
@@ -714,7 +569,7 @@ export default function AdminDashboard() {
           <CardDescription>Filter data to focus on specific metrics</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-9">
             {/* Unit comes first: admin sees view-only, superadmin can change */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -823,22 +678,28 @@ export default function AdminDashboard() {
               </Select>
             </div>
 
-            {/* Timeframe */}
+            {/* Start Date */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Timeframe
+                Start Date
               </label>
-              <Select value={timeframe} onValueChange={setTimeframe}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Daily" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="yearly">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+
+            {/* End Date */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                End Date
+              </label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
             </div>
 
             {/* Category */}
@@ -854,6 +715,24 @@ export default function AdminDashboard() {
                   <SelectItem value="all">All Categories</SelectItem>
                   <SelectItem value="critical">Critical</SelectItem>
                   <SelectItem value="non-critical">Non-Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Timeframe (Group By) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Timeframe
+              </label>
+              <Select value={timeframe} onValueChange={setTimeframe}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Monthly" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -876,7 +755,7 @@ export default function AdminDashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip 
+                  <Tooltip
                     cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   />
@@ -902,10 +781,10 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
+                <BarChart
                   data={dashboardMetrics.length > 0 ? (
                     ["Plant Head", "HOD", "Shift Incharge", "Team Leader"].map(layer => {
-                      const latest = dashboardMetrics[dashboardMetrics.length - 1]; // Show latest month breakdown
+                      const latest = dashboardMetrics[dashboardMetrics.length - 1];
                       return {
                         name: layer,
                         Plan: latest?.layers?.[layer]?.plan || 0,
@@ -957,7 +836,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Chart 4: Layer Performance Contribution */}
+        {/* Chart 4: Layer-wise Failure Distribution */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold">Layer-wise Failure Distribution</CardTitle>
@@ -1009,17 +888,17 @@ export default function AdminDashboard() {
               Process wise failures trend
             </div>
             <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
-              <Button 
-                variant={processTrendMode === "value" ? "secondary" : "ghost"} 
-                size="sm" 
+              <Button
+                variant={processTrendMode === "value" ? "secondary" : "ghost"}
+                size="sm"
                 className={`h-7 px-2 text-xs ${processTrendMode === "value" ? "bg-white shadow-sm" : ""}`}
                 onClick={() => setProcessTrendMode("value")}
               >
                 Numbers
               </Button>
-              <Button 
-                variant={processTrendMode === "percent" ? "secondary" : "ghost"} 
-                size="sm" 
+              <Button
+                variant={processTrendMode === "percent" ? "secondary" : "ghost"}
+                size="sm"
                 className={`h-7 px-2 text-xs ${processTrendMode === "percent" ? "bg-white shadow-sm" : ""}`}
                 onClick={() => setProcessTrendMode("percent")}
               >
@@ -1035,12 +914,12 @@ export default function AdminDashboard() {
               <BarChart data={processedDashboardMetrics}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis 
-                  tick={{ fontSize: 12 }} 
+                <YAxis
+                  tick={{ fontSize: 12 }}
                   unit={processTrendMode === 'percent' ? '%' : ''}
                   domain={processTrendMode === 'percent' ? [0, 100] : [0, 'auto']}
                 />
-                <Tooltip 
+                <Tooltip
                   formatter={(val) => [`${val}${processTrendMode === 'percent' ? '%' : ''}`, 'Failures']}
                 />
                 <Legend />
@@ -1050,18 +929,18 @@ export default function AdminDashboard() {
                     Object.keys(m.processes || {}).forEach(p => allProcesses.add(p));
                   });
                   return Array.from(allProcesses).map((proc, idx) => (
-                    <Bar 
-                      key={proc} 
-                      dataKey={`processes.${proc}`} 
-                      name={proc} 
-                      stackId="p" 
-                      fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]} 
+                    <Bar
+                      key={proc}
+                      dataKey={`processes.${proc}`}
+                      name={proc}
+                      stackId="p"
+                      fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]}
                     >
-                      <LabelList 
-                        dataKey={`processes.${proc}`} 
-                        position="inside" 
-                        style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} 
-                        formatter={(val) => val > 0 ? `${val}${processTrendMode === 'percent' ? '%' : ''}` : ''} 
+                      <LabelList
+                        dataKey={`processes.${proc}`}
+                        position="inside"
+                        style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }}
+                        formatter={(val) => val > 0 ? `${val}${processTrendMode === 'percent' ? '%' : ''}` : ''}
                       />
                     </Bar>
                   ));
@@ -1071,357 +950,6 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Audit Result Trend (Pass/Fail/NA) */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Audit Result Trend
-            </CardTitle>
-            <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
-              <Button 
-                variant={trendMode === "value" ? "secondary" : "ghost"} 
-                size="sm" 
-                className={`h-7 px-2 text-xs ${trendMode === "value" ? "bg-white shadow-sm" : ""}`}
-                onClick={() => setTrendMode("value")}
-              >
-                Numbers
-              </Button>
-              <Button 
-                variant={trendMode === "percent" ? "secondary" : "ghost"} 
-                size="sm" 
-                className={`h-7 px-2 text-xs ${trendMode === "percent" ? "bg-white shadow-sm" : ""}`}
-                onClick={() => setTrendMode("percent")}
-              >
-                Percentages
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={processedTrendData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--muted))"
-                    opacity={0.3}
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12 }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12 }}
-                    tickLine={false}
-                    axisLine={false}
-                    unit={trendMode === "percent" ? "%" : ""}
-                    domain={trendMode === "percent" ? [0, 100] : [0, "auto"]}
-                  />
-                  <Tooltip
-                    formatter={(value, name) => [`${value}${trendMode === "percent" ? "%" : " points"}`, name]}
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px hsl(var(--foreground) / 0.15)'
-                    }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="Pass"
-                    fill={CHART_COLORS.success}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
-                  </Bar>
-                  <Bar
-                    dataKey="Fail"
-                    fill={CHART_COLORS.error}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
-                  </Bar>
-                  <Bar
-                    dataKey="NA"
-                    fill={CHART_COLORS.neutral}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="NA" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}${trendMode === "percent" ? "%" : ""}`} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Overall Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5" />
-              Overall Answer Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72 grid grid-cols-2 gap-4">
-              <div className="relative">
-                <h4 className="text-center font-medium mb-2">Pass Rate</h4>
-                <ResponsiveContainer width="100%" height="90%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Pass", value: answerStats.pass },
-                        { name: "Other", value: answerStats.total - answerStats.pass },
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      startAngle={90}
-                      endAngle={-270}
-                      dataKey="value"
-                    >
-                      <Cell fill={CHART_COLORS.success} />
-                      <Cell fill="#f3f4f6" />
-                    </Pie>
-                    <text
-                      x="50%"
-                      y="50%"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className="fill-foreground text-2xl font-bold"
-                    >
-                      {answerStats.total > 0
-                        ? `${Math.round((answerStats.pass / answerStats.total) * 100)}%`
-                        : "0%"}
-                    </text>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="relative">
-                <h4 className="text-center font-medium mb-2">Fail Rate</h4>
-                <ResponsiveContainer width="100%" height="90%">
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Fail", value: answerStats.fail },
-                        { name: "Other", value: answerStats.total - answerStats.fail },
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      startAngle={90}
-                      endAngle={-270}
-                      dataKey="value"
-                    >
-                      <Cell fill={CHART_COLORS.error} />
-                      <Cell fill="#f3f4f6" />
-                    </Pie>
-                    <text
-                      x="50%"
-                      y="50%"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className="fill-foreground text-2xl font-bold"
-                    >
-                      {answerStats.total > 0
-                        ? `${Math.round((answerStats.fail / answerStats.total) * 100)}%`
-                        : "0%"}
-                    </text>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Total audits over time (uses same timeframe filter) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Layer Wise Audit Nos.
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={auditCountData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--muted))"
-                  opacity={0.3}
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 12 }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 12 }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip
-                  cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--background))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px hsl(var(--foreground) / 0.15)'
-                  }}
-                />
-                <Legend verticalAlign="top" height={36}/>
-                <Bar dataKey="Layer 1" fill="#0ea5e9" stackId="layer" barSize={30}>
-                  <LabelList dataKey="Layer 1" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
-                </Bar>
-                <Bar dataKey="Layer 2" fill="#f59e0b" stackId="layer" barSize={30}>
-                  <LabelList dataKey="Layer 2" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
-                </Bar>
-                <Bar dataKey="Layer 3" fill="#10b981" stackId="layer" radius={[4, 4, 0, 0]} barSize={30}>
-                  <LabelList dataKey="Layer 3" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? Math.round(val) : ''} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-
-
-
-      {/* Line & Machine Performance Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Line-wise performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Performance by Line
-            </CardTitle>
-            <CardDescription>
-              Pass / Fail across production lines
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-96">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={lineBarData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--muted))"
-                    opacity={0.3}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12 }}
-                    tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12 }}
-                    tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px hsl(var(--foreground) / 0.15)'
-                    }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="Pass"
-                    fill={CHART_COLORS.success}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                  <Bar
-                    dataKey="Fail"
-                    fill={CHART_COLORS.error}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Machine-wise performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Performance by Machine
-            </CardTitle>
-            <CardDescription>
-              Pass / Fail across machines
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-96">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={machineBarData}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--muted))"
-                    opacity={0.3}
-                  />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 12 }}
-                    tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12 }}
-                    tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px hsl(var(--foreground) / 0.15)'
-                    }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="Pass"
-                    fill={CHART_COLORS.success}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Pass" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                  <Bar
-                    dataKey="Fail"
-                    fill={CHART_COLORS.error}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    <LabelList dataKey="Fail" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Process Wise Failure Trend */}
       <Card>
