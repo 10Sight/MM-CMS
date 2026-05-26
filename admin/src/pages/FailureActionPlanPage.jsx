@@ -322,22 +322,22 @@ export default function FailureActionPlanPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Date</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Failure Point</TableHead>
-                  <TableHead>Root Cause</TableHead>
-                  <TableHead>Systemic Root Cause</TableHead>
-                  <TableHead>System improvement against root cause</TableHead>
-                  <TableHead>Responsibility</TableHead>
-                  <TableHead>Target Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Manage</TableHead>
+                  <TableHead className="whitespace-nowrap">Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Department</TableHead>
+                  <TableHead className="min-w-[200px]">Failure Point</TableHead>
+                  <TableHead className="min-w-[150px]">Root Cause</TableHead>
+                  <TableHead className="min-w-[150px]">Systemic Root Cause</TableHead>
+                  <TableHead className="min-w-[220px]">System improvement against root cause</TableHead>
+                  <TableHead className="min-w-[120px]">Responsibility</TableHead>
+                  <TableHead className="whitespace-nowrap">Target Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Manage</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-20 text-muted-foreground animate-pulse font-medium">
+                    <TableCell colSpan={10} className="text-center py-20 text-muted-foreground animate-pulse font-medium">
                       Loading failure data...
                     </TableCell>
                   </TableRow>
@@ -346,12 +346,12 @@ export default function FailureActionPlanPage() {
                     <TableCell className="font-medium whitespace-nowrap">
                       {point.date ? format(new Date(point.date), "dd MMM yy") : "N/A"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[120px]">
                       <div className="text-xs font-semibold">{point.machine}</div>
                       <div className="text-[10px] text-muted-foreground uppercase">{point.line} | {point.department}</div>
                     </TableCell>
-                    <TableCell className="max-w-[200px]">
-                      <div className="text-sm font-medium line-clamp-2" title={point.question}>{point.question}</div>
+                    <TableCell className="min-w-[200px] max-w-[300px] break-words whitespace-normal">
+                      <div className="text-sm font-medium" title={point.question}>{point.question}</div>
                       <div className="flex gap-1 mt-1">
                         {point.isRepeated && (
                           <Badge variant="destructive" className="text-[9px] h-4 px-1">
@@ -360,16 +360,16 @@ export default function FailureActionPlanPage() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs italic text-muted-foreground max-w-[150px]">
+                    <TableCell className="text-xs italic text-muted-foreground min-w-[150px] max-w-[200px] break-words whitespace-normal">
                       {point.rootCause || "-"}
                     </TableCell>
-                    <TableCell className="text-xs italic text-muted-foreground max-w-[150px]">
+                    <TableCell className="text-xs italic text-muted-foreground min-w-[150px] max-w-[200px] break-words whitespace-normal">
                       {point.systemicRootCause || "-"}
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-blue-700 max-w-[200px]">
+                    <TableCell className="text-xs font-medium text-blue-700 min-w-[220px] max-w-[300px] break-words whitespace-normal">
                       {point.systemImprovement || point.actionPlan || "-"}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="text-xs min-w-[120px] break-words whitespace-normal">
                       {point.actionOwner || "-"}
                     </TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
@@ -400,7 +400,7 @@ export default function FailureActionPlanPage() {
                 ))}
                 {!isLoading && failures.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-20 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-20 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <CheckCircle2 className="h-10 w-10 text-emerald-500 opacity-20" />
                         <p className="font-medium">All clear! No pending failure points found.</p>

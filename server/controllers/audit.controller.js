@@ -1291,7 +1291,7 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       $group: {
         _id: {
           ...currentGroupId,
-          category: { $ifNull: ["$q.category", "Uncategorized"] }
+          category: { $ifNull: ["$q.category", "Skilled-wise"] }
         },
         total: { $sum: 1 },
         failed: {
@@ -1531,7 +1531,7 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
           question: ans.question?.questionText || "Unknown",
           questionId: qId,
           template: ans.question?.templateTitle || "General",
-          category: ans.question?.category || "Uncategorized",
+          category: ans.question?.category || "Skilled-wise",
           answer: ans.answer,
           remark: ans.remark,
           photos: ans.photos,

@@ -102,7 +102,7 @@ export default function AdminTemplateQuestionsPage() {
        lineId: first.lines?.[0]?._id || first.lines?.[0] || "",
        process: first.processes?.[0]?.name || "Any",
        processId: first.processes?.[0]?._id || first.processes?.[0] || "",
-       category: first.category || "Uncategorized",
+       category: first.category || "Skilled-wise",
      };
    }, [questions]);
 

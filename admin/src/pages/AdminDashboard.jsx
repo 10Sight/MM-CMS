@@ -342,13 +342,33 @@ export default function AdminDashboard() {
 
   // Processed data for Process wise failures trend chart (value vs percent mode)
   const processedDashboardMetrics = useMemo(() => {
-    if (processTrendMode === "value") return dashboardMetrics;
     return dashboardMetrics.map(m => {
-      const newItem = { ...m, processes: { ...(m.processes || {}) } };
-      Object.keys(newItem.processes).forEach(cat => {
-        const catTotal = m.categoryTotals?.[cat] || 0;
-        newItem.processes[cat] = catTotal > 0 ? Number(((newItem.processes[cat] / catTotal) * 100).toFixed(1)) : 0;
-      });
+      const processes = {};
+      const categoryTotals = {};
+
+      if (m.processes) {
+        Object.keys(m.processes).forEach(cat => {
+          const mappedName = cat === "Uncategorized" ? "Skilled-wise" : cat;
+          processes[mappedName] = m.processes[cat];
+        });
+      }
+
+      if (m.categoryTotals) {
+        Object.keys(m.categoryTotals).forEach(cat => {
+          const mappedName = cat === "Uncategorized" ? "Skilled-wise" : cat;
+          categoryTotals[mappedName] = m.categoryTotals[cat];
+        });
+      }
+
+      const newItem = { ...m, processes, categoryTotals };
+
+      if (processTrendMode === "percent") {
+        Object.keys(newItem.processes).forEach(cat => {
+          const catTotal = newItem.categoryTotals?.[cat] || 0;
+          newItem.processes[cat] = catTotal > 0 ? Number(((newItem.processes[cat] / catTotal) * 100).toFixed(1)) : 0;
+        });
+      }
+
       return newItem;
     });
   }, [dashboardMetrics, processTrendMode]);
@@ -569,7 +589,7 @@ export default function AdminDashboard() {
           <CardDescription>Filter data to focus on specific metrics</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-9">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {/* Unit comes first: admin sees view-only, superadmin can change */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
