@@ -348,15 +348,15 @@ export default function AdminDashboard() {
 
       if (m.processes) {
         Object.keys(m.processes).forEach(cat => {
-          const mappedName = cat === "Uncategorized" ? "Skilled-wise" : cat;
-          processes[mappedName] = m.processes[cat];
+          if (cat === "Skilled-wise" || cat === "Uncategorized") return;
+          processes[cat] = m.processes[cat];
         });
       }
 
       if (m.categoryTotals) {
         Object.keys(m.categoryTotals).forEach(cat => {
-          const mappedName = cat === "Uncategorized" ? "Skilled-wise" : cat;
-          categoryTotals[mappedName] = m.categoryTotals[cat];
+          if (cat === "Skilled-wise" || cat === "Uncategorized") return;
+          categoryTotals[cat] = m.categoryTotals[cat];
         });
       }
 
