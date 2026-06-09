@@ -7,3 +7,4 @@ export { default as ProcessWiseFailureTrendChart } from "./ProcessWiseFailureTre
 export { default as LayerWiseTrendChart } from "./LayerWiseTrendChart";
 export { default as MonthlyRoleContributionChart } from "./MonthlyRoleContributionChart";
 export { default as ChartFilters } from "./ChartFilters";
+export { default as ChartLoader } from "./ChartLoader";

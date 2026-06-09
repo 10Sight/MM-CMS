@@ -9,6 +9,7 @@ import { TrendingUp } from "lucide-react";
 import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
+import ChartLoader from "./ChartLoader";
 
 const PREMIUM_COLORS = [
   "#2563EB", "#F97316", "#10B981", "#8B5CF6",
@@ -108,7 +109,7 @@ export default function ProcessWiseFailuresTrendChart() {
           ))}
         </div>
         {isLoading ? (
-          <div className="h-96 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>
+          <ChartLoader height={384} />
         ) : (
           <div ref={scrollRef} className="overflow-x-auto">
             <div style={{ minWidth: Math.max(500, processedData.length * 100) }}>

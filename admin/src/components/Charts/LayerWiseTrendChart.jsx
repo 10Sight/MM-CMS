@@ -8,6 +8,7 @@ import { TrendingUp } from "lucide-react";
 import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
+import ChartLoader from "./ChartLoader";
 
 const LEGEND = [
   { name: "Plan", color: "#0f172a" },
@@ -53,7 +54,7 @@ export default function LayerWiseTrendChart() {
           ))}
         </div>
         {isLoading ? (
-          <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">Loading…</div>
+          <ChartLoader height={300} />
         ) : (
           <div ref={scrollRef} className="overflow-x-auto">
             <div style={{ minWidth: Math.max(400, data.length * 100) }}>

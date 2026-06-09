@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { useGetAuditsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
+import ChartLoader from "./ChartLoader";
 
 function normalizeAnswer(value) {
   const val = (value || "").toString().toLowerCase();
@@ -140,7 +141,7 @@ export default function ProcessWiseFailureTrendChart() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="h-[400px] flex items-center justify-center text-sm text-muted-foreground">Loading…</div>
+          <ChartLoader height={400} />
         ) : (
           <div style={{ height: Math.max(400, data.length * 50) }}>
             <ResponsiveContainer width="100%" height="100%">

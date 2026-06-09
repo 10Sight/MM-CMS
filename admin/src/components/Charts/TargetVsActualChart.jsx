@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
+import ChartLoader from "./ChartLoader";
 
 const LEGEND = [
   { name: "Target", color: "#3b82f6" },
@@ -39,7 +40,7 @@ export default function TargetVsActualChart() {
           ))}
         </div>
         {isLoading ? (
-          <div className="h-80 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>
+          <ChartLoader height={320} />
         ) : (
           <div ref={scrollRef} className="overflow-x-auto">
             <div style={{ minWidth: Math.max(500, dashboardMetrics.length * 80) }}>
