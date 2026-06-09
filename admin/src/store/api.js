@@ -341,6 +341,17 @@ export const api = createApi({
       query: ({ id, ...body }) => ({ url: `/api/v1/auth/employee/${id}/target-audit`, method: 'PUT', body }),
       invalidatesTags: (result, error, { id }) => [{ type: 'Employee', id }],
     }),
+    getEmployeeMonthlyTargets: builder.query({
+      query: ({ id, year }) => ({ url: `/api/v1/auth/employee/${id}/monthly-targets`, params: { year } }),
+      providesTags: (result, error, { id, year }) => [{ type: 'Employee', id: `monthly-${id}-${year}` }],
+    }),
+    updateEmployeeMonthlyTargets: builder.mutation({
+      query: ({ id, ...body }) => ({ url: `/api/v1/auth/employee/${id}/monthly-targets`, method: 'PUT', body }),
+      invalidatesTags: (result, error, { id, year }) => [
+        { type: 'Employee', id },
+        { type: 'Employee', id: `monthly-${id}-${year}` },
+      ],
+    }),
     deleteEmployeeById: builder.mutation({
       query: (id) => ({ url: `/api/v1/auth/employee/${id}`, method: 'DELETE' }),
       invalidatesTags: [
@@ -424,6 +435,8 @@ export const {
   useGetEmployeeByIdQuery,
   useUpdateEmployeeByIdMutation,
   useUpdateEmployeeTargetAuditMutation,
+  useGetEmployeeMonthlyTargetsQuery,
+  useUpdateEmployeeMonthlyTargetsMutation,
   useDeleteEmployeeByIdMutation,
   useRegisterEmployeeMutation,
   useUploadImageMutation,

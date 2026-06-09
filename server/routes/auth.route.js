@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerEmployee, loginEmployee, logoutEmployee, getEmployees, deleteEmployee, getSingleEmployee, getCurrentUser, updateEmployee, updateEmployeeTargetAudit, getAllUsers, populateUsernames, bootstrapSuperAdmin, getUserStats, initiateQrLogin, verifyQrLoginOtp, initiateMobileLogin, verifyMobileLoginOtp } from "../controllers/auth.controller.js";
+import { registerEmployee, loginEmployee, logoutEmployee, getEmployees, deleteEmployee, getSingleEmployee, getCurrentUser, updateEmployee, updateEmployeeTargetAudit, updateEmployeeMonthlyTargets, getEmployeeMonthlyTargets, getAllUsers, populateUsernames, bootstrapSuperAdmin, getUserStats, initiateQrLogin, verifyQrLoginOtp, initiateMobileLogin, verifyMobileLoginOtp } from "../controllers/auth.controller.js";
 import { verifyJWT, authorizeRoles } from '../middlewares/auth.middleware.js';
 import { loginLimiter } from '../middlewares/rateLimiters.middleware.js';
 import { validate } from '../middlewares/validte.middleware.js';
@@ -24,6 +24,8 @@ router.get("/user-stats", verifyJWT, authorizeRoles("admin", "superadmin"), getU
 router.delete("/employee/:id", verifyJWT, authorizeRoles("admin"), deleteEmployee);
 router.put("/employee/:id", verifyJWT, authorizeRoles("admin"), updateEmployee);
 router.put("/employee/:id/target-audit", verifyJWT, authorizeRoles("admin"), updateEmployeeTargetAudit);
+router.get("/employee/:id/monthly-targets", verifyJWT, authorizeRoles("admin", "superadmin"), getEmployeeMonthlyTargets);
+router.put("/employee/:id/monthly-targets", verifyJWT, authorizeRoles("admin", "superadmin"), updateEmployeeMonthlyTargets);
 router.get("/employee/:id", verifyJWT, getSingleEmployee);
 router.get("/me", verifyJWT, getCurrentUser);
 // Migration route - can be removed after running once

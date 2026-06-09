@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Edit, Trash2, User, Mail, Phone, IdCard, Activity, Calendar, CheckCircle2, XCircle, ArrowLeft } from "lucide-react";
+import { Edit, Trash2, User, Mail, Phone, IdCard, Activity, Calendar, CheckCircle2, XCircle, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import { useGetEmployeeByIdQuery, useDeleteEmployeeByIdMutation, useGetAuditsQuery, useUpdateEmployeeTargetAuditMutation } from "@/store/api";
+import { useGetEmployeeByIdQuery, useDeleteEmployeeByIdMutation, useGetAuditsQuery, useUpdateEmployeeTargetAuditMutation, useGetEmployeeMonthlyTargetsQuery, useUpdateEmployeeMonthlyTargetsMutation } from "@/store/api";
+import { computeMonthDelayed } from "@/utils/delayedAuditUtils";
 import Loader from "@/components/ui/Loader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,11 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
 export default function EmployeeDetailPage() {
   const { id } = useParams();
@@ -28,10 +34,22 @@ export default function EmployeeDetailPage() {
   const [nextReminderAt, setNextReminderAt] = useState(null);
   const [reminderCountdown, setReminderCountdown] = useState("");
 
+  const [targetYear, setTargetYear] = useState(new Date().getFullYear());
+  const [monthlyTargets, setMonthlyTargets] = useState(
+    Array.from({ length: 12 }, (_, i) => ({ month: i + 1, total: "", reminderTime: "" }))
+  );
+  const [sharedReminderTime, setSharedReminderTime] = useState("");
+  const [savingMonthly, setSavingMonthly] = useState(false);
+
   const { data: empRes, isLoading: empLoading } = useGetEmployeeByIdQuery(id, { skip: !id });
   const { data: auditsRes, isLoading: auditsLoading } = useGetAuditsQuery({ auditor: id, page: 1, limit: 200 }, { skip: !id });
   const [deleteEmployee] = useDeleteEmployeeByIdMutation();
   const [updateTargetAudit] = useUpdateEmployeeTargetAuditMutation();
+  const { data: monthlyTargetsRes, isLoading: monthlyLoading } = useGetEmployeeMonthlyTargetsQuery(
+    { id, year: targetYear },
+    { skip: !id }
+  );
+  const [updateMonthlyTargets] = useUpdateEmployeeMonthlyTargetsMutation();
 
   const getAverageRatingPercent = (audit) => {
     const values = [
@@ -247,6 +265,72 @@ export default function EmployeeDetailPage() {
       alert(err?.data?.message || err?.message || "Failed to update target audit");
     } finally {
       setSavingTarget(false);
+    }
+  };
+
+  // Reset monthly form inputs when the selected year changes
+  useEffect(() => {
+    setMonthlyTargets(Array.from({ length: 12 }, (_, i) => ({ month: i + 1, total: "", reminderTime: "" })));
+  }, [targetYear]);
+
+  // Populate monthly form from API response
+  useEffect(() => {
+    if (!monthlyTargetsRes?.data?.months) return;
+    const loaded = monthlyTargetsRes.data.months;
+    setMonthlyTargets(
+      Array.from({ length: 12 }, (_, i) => {
+        const found = loaded.find((m) => m.month === i + 1);
+        return {
+          month: i + 1,
+          total: found?.total != null ? String(found.total) : "",
+          reminderTime: found?.reminderTime ?? "",
+        };
+      })
+    );
+  }, [monthlyTargetsRes]);
+
+  const getMonthAuditCount = (year, month) => {
+    if (!Array.isArray(audits)) return 0;
+    return audits.filter((a) => {
+      if (!a.date) return false;
+      const d = new Date(a.date);
+      return d.getFullYear() === year && d.getMonth() + 1 === month;
+    }).length;
+  };
+
+  const handleApplySharedReminder = () => {
+    if (!sharedReminderTime) return;
+    setMonthlyTargets((prev) => prev.map((m) => ({ ...m, reminderTime: sharedReminderTime })));
+  };
+
+  const handleSaveMonthlyTargets = async () => {
+    const validEntries = monthlyTargets.filter((m) => m.total !== "" && Number(m.total) > 0);
+    if (validEntries.length === 0) {
+      alert("Please enter at least one month's target count");
+      return;
+    }
+    for (const entry of validEntries) {
+      if (entry.reminderTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(entry.reminderTime.trim())) {
+        alert(`Invalid reminder time for ${MONTH_NAMES[entry.month - 1]}. Use HH:mm (24-hour) format, e.g. 09:30`);
+        return;
+      }
+    }
+    try {
+      setSavingMonthly(true);
+      await updateMonthlyTargets({
+        id,
+        year: targetYear,
+        months: validEntries.map((m) => ({
+          month: m.month,
+          total: Number(m.total),
+          ...(m.reminderTime ? { reminderTime: m.reminderTime.trim() } : {}),
+        })),
+      }).unwrap();
+      alert("Monthly targets saved successfully");
+    } catch (err) {
+      alert(err?.data?.message || err?.message || "Failed to save monthly targets");
+    } finally {
+      setSavingMonthly(false);
     }
   };
 
@@ -559,6 +643,275 @@ export default function EmployeeDetailPage() {
               </div>
             );
           })()}
+        </CardContent>
+      </Card>
+
+      {/* Monthly Targets Section */}
+      <Card className="shadow-sm border border-slate-200/70">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-lg">Monthly Audit Targets</CardTitle>
+                <CardDescription>
+                  Set month-by-month audit targets for this auditor across the year.
+                </CardDescription>
+              </div>
+            </div>
+            {/* Year navigator */}
+            <div className="flex items-center gap-1 self-start sm:self-auto">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setTargetYear((y) => y - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="font-semibold text-base min-w-[4.5rem] text-center">{targetYear}</span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setTargetYear((y) => y + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Shared reminder time row */}
+          <div className="flex flex-wrap items-end gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Apply one reminder time to all months</label>
+              <Input
+                type="time"
+                value={sharedReminderTime}
+                onChange={(e) => setSharedReminderTime(e.target.value)}
+                className="w-36 h-8"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleApplySharedReminder}
+              disabled={!sharedReminderTime}
+            >
+              Apply to all
+            </Button>
+            <p className="text-[11px] text-muted-foreground self-end">
+              Only months that already have a target count will receive reminder emails.
+            </p>
+          </div>
+
+          {/* 12-month grid */}
+          {monthlyLoading ? (
+            <Loader />
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {monthlyTargets.map((mt) => {
+                const done = getMonthAuditCount(targetYear, mt.month);
+                const hasTarget = mt.total !== "" && Number(mt.total) > 0;
+                const target = hasTarget ? Number(mt.total) : 0;
+                const pct = hasTarget ? Math.min(100, Math.round((done / target) * 100)) : 0;
+
+                const now = new Date();
+                const nowYear = now.getFullYear();
+                const nowMonth = now.getMonth() + 1;
+                const isCurrentMonth = targetYear === nowYear && mt.month === nowMonth;
+                const isPastMonth =
+                  targetYear < nowYear || (targetYear === nowYear && mt.month < nowMonth);
+                const isFutureMonth =
+                  targetYear > nowYear || (targetYear === nowYear && mt.month > nowMonth);
+
+                const delayed = hasTarget
+                  ? computeMonthDelayed(targetYear, mt.month, target, done)
+                  : 0;
+                const isDelayed = delayed > 0;
+                const isComplete = hasTarget && !isFutureMonth && done >= target;
+
+                // Border + background reflects status
+                const cardClass = isFutureMonth
+                  ? "border-slate-200 bg-white"
+                  : isCurrentMonth
+                  ? isDelayed
+                    ? "border-amber-300 bg-amber-50/50 shadow-sm"
+                    : "border-blue-300 bg-blue-50/60 shadow-sm"
+                  : isPastMonth
+                  ? isComplete
+                    ? "border-emerald-200 bg-emerald-50/30"
+                    : isDelayed
+                    ? "border-amber-200 bg-amber-50/30"
+                    : "border-slate-200 bg-white"
+                  : "border-slate-200 bg-white";
+
+                const monthLabelClass = isCurrentMonth
+                  ? isDelayed
+                    ? "text-amber-700"
+                    : "text-blue-700"
+                  : isPastMonth && isComplete
+                  ? "text-emerald-700"
+                  : isPastMonth && isDelayed
+                  ? "text-amber-700"
+                  : "text-slate-700";
+
+                const barClass =
+                  isComplete
+                    ? "bg-emerald-500"
+                    : isDelayed
+                    ? "bg-amber-500"
+                    : "bg-blue-500";
+
+                return (
+                  <div
+                    key={mt.month}
+                    className={`rounded-xl border p-3 space-y-2.5 transition-colors ${cardClass}`}
+                  >
+                    {/* Header: month name + status badges */}
+                    <div className="flex items-start justify-between gap-1">
+                      <span className={`font-semibold text-sm leading-tight ${monthLabelClass}`}>
+                        {MONTH_NAMES[mt.month - 1]}
+                        {isCurrentMonth && (
+                          <span className={`ml-1 text-[10px] font-medium ${isDelayed ? "text-amber-500" : "text-blue-500"}`}>
+                            now
+                          </span>
+                        )}
+                      </span>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                        {hasTarget && !isFutureMonth && (
+                          <span
+                            className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full leading-none ${
+                              isComplete
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {done}/{target}
+                          </span>
+                        )}
+                        {isDelayed && (
+                          <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full leading-none bg-amber-100 text-amber-700">
+                            -{delayed} late
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground">Target audits</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="—"
+                        value={mt.total}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMonthlyTargets((prev) =>
+                            prev.map((m) => (m.month === mt.month ? { ...m, total: val } : m))
+                          );
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground">Reminder time</label>
+                      <Input
+                        type="time"
+                        value={mt.reminderTime}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMonthlyTargets((prev) =>
+                            prev.map((m) => (m.month === mt.month ? { ...m, reminderTime: val } : m))
+                          );
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+
+                    {hasTarget && !isFutureMonth && (
+                      <div className="space-y-0.5">
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-300 ${barClass}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">{pct}% complete</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Year summary stats */}
+          {(() => {
+            const now = new Date();
+            const nowYear = now.getFullYear();
+            const nowMonth = now.getMonth() + 1;
+
+            let totalTarget = 0;
+            let totalDone = 0;
+            let totalDelayed = 0;
+            let delayedMonthCount = 0;
+
+            monthlyTargets.forEach((mt) => {
+              if (!mt.total || Number(mt.total) <= 0) return;
+              const isFuture =
+                targetYear > nowYear || (targetYear === nowYear && mt.month > nowMonth);
+              if (isFuture) return;
+
+              const t = Number(mt.total);
+              const d = getMonthAuditCount(targetYear, mt.month);
+              const del = computeMonthDelayed(targetYear, mt.month, t, d);
+              totalTarget += t;
+              totalDone += d;
+              totalDelayed += del;
+              if (del > 0) delayedMonthCount++;
+            });
+
+            if (totalTarget === 0) return null;
+
+            return (
+              <div className="grid grid-cols-3 gap-3 pt-3 border-t border-slate-100">
+                <div className="text-center p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-0.5">
+                    YTD Target
+                  </p>
+                  <p className="text-xl font-bold text-slate-700">{totalTarget}</p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-500 mb-0.5">
+                    Completed
+                  </p>
+                  <p className="text-xl font-bold text-emerald-700">{totalDone}</p>
+                </div>
+                <div className={`text-center p-2 rounded-lg border ${totalDelayed > 0 ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide mb-0.5 ${totalDelayed > 0 ? "text-amber-500" : "text-slate-400"}`}>
+                    Delayed
+                  </p>
+                  <p className={`text-xl font-bold ${totalDelayed > 0 ? "text-amber-700" : "text-slate-400"}`}>
+                    {totalDelayed}
+                  </p>
+                  {delayedMonthCount > 0 && (
+                    <p className="text-[10px] text-amber-500 mt-0.5">
+                      {delayedMonthCount} month{delayedMonthCount > 1 ? "s" : ""} behind
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className="flex justify-end pt-1">
+            <Button onClick={handleSaveMonthlyTargets} disabled={savingMonthly}>
+              {savingMonthly ? "Saving..." : `Save ${targetYear} Targets`}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

@@ -748,3 +748,135 @@ export const verifyQrLoginOtp = asyncHandler(async (req, res) => {
 
 // Mobile OTP verification reuses the same logic as QR OTP verification
 export const verifyMobileLoginOtp = verifyQrLoginOtp;
+
+// ===== Monthly Target Audits =====
+
+export const getEmployeeMonthlyTargets = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const parsedYear = parseInt(req.query.year) || new Date().getUTCFullYear();
+
+  const employee = await Employee.findById(id);
+  if (!employee) throw new ApiError(404, "Employee not found");
+
+  const records = await TargetAuditHistory.find({
+    employee: id,
+    startDate: {
+      $gte: new Date(Date.UTC(parsedYear, 0, 1)),
+      $lt: new Date(Date.UTC(parsedYear + 1, 0, 1)),
+    },
+  }).lean();
+
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    const record = records.find((r) => {
+      const d = new Date(r.startDate);
+      return d.getUTCFullYear() === parsedYear && d.getUTCMonth() + 1 === month;
+    });
+    return {
+      month,
+      total: record?.total ?? null,
+      reminderTime: record?.reminderTime ?? null,
+      startDate: record?.startDate ?? null,
+      endDate: record?.endDate ?? null,
+    };
+  });
+
+  return res.status(200).json(new ApiResponse(200, { year: parsedYear, months }, "Monthly targets fetched"));
+});
+
+export const updateEmployeeMonthlyTargets = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { year, months } = req.body || {};
+
+  const parsedYear = parseInt(year);
+  if (!parsedYear || parsedYear < 2000 || parsedYear > 2100) {
+    throw new ApiError(400, "year must be a valid year between 2000 and 2100");
+  }
+  if (!Array.isArray(months) || months.length === 0) {
+    throw new ApiError(400, "months array is required");
+  }
+
+  const employee = await Employee.findById(id);
+  if (!employee) throw new ApiError(404, "Employee not found");
+  if (employee.role !== "employee") {
+    throw new ApiError(400, "Monthly targets can only be set for employee (auditor) users");
+  }
+
+  // Validate and normalize all entries first
+  const normalized = [];
+  for (const entry of months) {
+    const m = parseInt(entry.month);
+    if (isNaN(m) || m < 1 || m > 12) continue;
+    const t = Number(entry.total);
+    if (!t || t <= 0) continue;
+
+    let normalizedReminderTime;
+    if (entry.reminderTime) {
+      const trimmed = String(entry.reminderTime).trim();
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) {
+        throw new ApiError(400, `reminderTime for month ${m} must be in HH:mm format (24-hour)`);
+      }
+      normalizedReminderTime = trimmed;
+    }
+
+    const lastDayOfMonth = new Date(Date.UTC(parsedYear, m, 0)).getUTCDate();
+    const startDate = new Date(Date.UTC(parsedYear, m - 1, 1));
+    const endDate = new Date(Date.UTC(parsedYear, m - 1, lastDayOfMonth));
+
+    normalized.push({ month: m, total: t, reminderTime: normalizedReminderTime, startDate, endDate });
+  }
+
+  if (normalized.length === 0) {
+    throw new ApiError(400, "No valid month entries provided (each must have month 1–12 and total > 0)");
+  }
+
+  // Upsert TargetAuditHistory for each valid month
+  for (const entry of normalized) {
+    const updateFields = {
+      employee: employee._id,
+      total: entry.total,
+      startDate: entry.startDate,
+      endDate: entry.endDate,
+    };
+    if (entry.reminderTime) updateFields.reminderTime = entry.reminderTime;
+
+    await TargetAuditHistory.findOneAndUpdate(
+      { employee: employee._id, startDate: entry.startDate, endDate: entry.endDate },
+      { $set: updateFields, ...(entry.reminderTime ? {} : { $unset: { reminderTime: "" } }) },
+      { upsert: true, new: true }
+    );
+  }
+
+  // Sync employee.targetAudit to the current month's target, or nearest upcoming one
+  const nowUTC = new Date();
+  const nowYear = nowUTC.getUTCFullYear();
+  const nowMonth = nowUTC.getUTCMonth() + 1;
+
+  const currentMonthEntry = normalized.find(
+    (e) => parsedYear === nowYear && e.month === nowMonth
+  );
+  const syncTarget =
+    currentMonthEntry ||
+    normalized
+      .filter((e) => parsedYear > nowYear || (parsedYear === nowYear && e.month > nowMonth))
+      .sort((a, b) => a.month - b.month)[0] ||
+    null;
+
+  if (syncTarget) {
+    employee.targetAudit = {
+      total: syncTarget.total,
+      startDate: syncTarget.startDate,
+      endDate: syncTarget.endDate,
+      ...(syncTarget.reminderTime ? { reminderTime: syncTarget.reminderTime } : {}),
+    };
+    await employee.save();
+  }
+
+  logger.info(
+    `Monthly targets (${normalized.length} months, year ${parsedYear}) updated for ${employee.fullName} (${employee.employeeId}) by ${req.user.fullName} (${req.user.employeeId})`
+  );
+
+  return res.status(200).json(
+    new ApiResponse(200, { year: parsedYear, count: normalized.length }, "Monthly targets updated successfully")
+  );
+});

@@ -15,6 +15,7 @@ import {
   Target
 } from "lucide-react";
 import { useDeleteEmployeeByIdMutation, useGetDepartmentsQuery, useGetEmployeesQuery, useGetAuditsQuery, useGetUnitsQuery } from "@/store/api";
+import { computeWindowDelayed } from "@/utils/delayedAuditUtils";
 import Loader from "@/components/ui/Loader";
 import { useAuth } from "../context/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -211,28 +212,26 @@ export default function EmployeesPage() {
   const getTargetAndActual = (emp) => {
     const target = emp?.targetAudit;
     if (!target || !target.total || !target.startDate || !target.endDate) {
-      return { hasTarget: false, targetTotal: 0, actual: 0 };
+      return { hasTarget: false, targetTotal: 0, actual: 0, delayed: 0 };
     }
 
     // Normalize to YYYY-MM-DD strings for date-only comparison
-    // This avoids issues where the audit time is later than the target end date's midnight timestamp
     const startDateStr = new Date(target.startDate).toISOString().split('T')[0];
     const endDateStr = new Date(target.endDate).toISOString().split('T')[0];
 
     const actual = Array.isArray(audits)
       ? audits.filter((a) => {
-        if (!a.date) return false;
-        if (!a.auditor) return false;
-        const auditorId = a.auditor._id || a.auditor;
-
-        if (String(auditorId) !== String(emp._id)) return false;
-
-        const auditDateStr = new Date(a.date).toISOString().split('T')[0];
-        return auditDateStr >= startDateStr && auditDateStr <= endDateStr;
-      }).length
+          if (!a.date || !a.auditor) return false;
+          const auditorId = a.auditor._id || a.auditor;
+          if (String(auditorId) !== String(emp._id)) return false;
+          const auditDateStr = new Date(a.date).toISOString().split('T')[0];
+          return auditDateStr >= startDateStr && auditDateStr <= endDateStr;
+        }).length
       : 0;
 
-    return { hasTarget: true, targetTotal: target.total, actual };
+    const delayed = computeWindowDelayed(target.startDate, target.endDate, target.total, actual);
+
+    return { hasTarget: true, targetTotal: target.total, actual, delayed };
   };
 
   const handleDelete = async (emp) => {
@@ -250,7 +249,7 @@ export default function EmployeesPage() {
     if (!employees.length) return;
 
     const data = employees.map((emp) => {
-      const { hasTarget, targetTotal, actual } = getTargetAndActual(emp);
+      const { hasTarget, targetTotal, actual, delayed } = getTargetAndActual(emp);
       return {
         "Full Name": emp.fullName,
         Email: emp.emailId,
@@ -260,6 +259,7 @@ export default function EmployeesPage() {
         Role: emp.role,
         "Target Audits": hasTarget ? targetTotal : "-",
         "Actual Audits (in target)": hasTarget ? actual : "-",
+        "Delayed Audits": hasTarget ? delayed : "-",
         Created: new Date(emp.createdAt).toLocaleDateString(),
       };
     });
@@ -386,6 +386,7 @@ export default function EmployeesPage() {
                   <TableHead className="hidden md:table-cell">Designation</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Target Audits</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Actual (in target)</TableHead>
+                  <TableHead className="hidden lg:table-cell text-center">Delayed</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Progress</TableHead>
                   <TableHead className="hidden md:table-cell">Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -394,7 +395,7 @@ export default function EmployeesPage() {
               <TableBody>
                 {employees.length > 0 ? (
                   employees.map((emp) => {
-                    const { hasTarget, targetTotal, actual } = getTargetAndActual(emp);
+                    const { hasTarget, targetTotal, actual, delayed } = getTargetAndActual(emp);
                     const progressPercent = hasTarget && targetTotal > 0
                       ? Math.round((actual / targetTotal) * 100)
                       : 0;
@@ -438,6 +439,21 @@ export default function EmployeesPage() {
                             <span className="inline-flex items-center justify-center rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 border border-emerald-200">
                               {actual}
                             </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-center text-xs">
+                          {hasTarget ? (
+                            delayed > 0 ? (
+                              <span className="inline-flex items-center justify-center rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 border border-amber-200 font-medium">
+                                {delayed}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center justify-center rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-600 border border-emerald-200">
+                                0
+                              </span>
+                            )
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
@@ -487,7 +503,7 @@ export default function EmployeesPage() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchTerm ? (
                         <div className="flex flex-col items-center justify-center">
                           <Search className="h-8 w-8 text-muted-foreground mb-2" />
