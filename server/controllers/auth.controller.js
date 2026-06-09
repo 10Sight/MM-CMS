@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Employee from "../models/auth.model.js";
 import Department from "../models/department.model.js";
+import TargetAuditHistory from "../models/targetAuditHistory.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import logger from "../logger/winston.logger.js";
@@ -368,6 +369,23 @@ export const updateEmployeeTargetAudit = asyncHandler(async (req, res) => {
   };
 
   await employee.save();
+
+  // Save or Update in TargetAuditHistory collection
+  await TargetAuditHistory.findOneAndUpdate(
+    {
+      employee: employee._id,
+      startDate: start,
+      endDate: end,
+    },
+    {
+      employee: employee._id,
+      total: Number(total),
+      startDate: start,
+      endDate: end,
+      reminderTime: normalizedReminderTime,
+    },
+    { upsert: true, new: true }
+  );
 
   logger.info(
     `Target audit updated for ${employee.fullName} (${employee.employeeId}) by ${req.user.fullName} (${req.user.employeeId})`

@@ -11,6 +11,7 @@ import EVN from "../config/env.config.js";
 import mongoose from "mongoose";
 import Employee from "../models/auth.model.js";
 import Question from "../models/question.model.js";
+import TargetAuditHistory from "../models/targetAuditHistory.model.js";
 
 // Normalize a comma-separated email string into a clean list
 const normalizeEmailList = (raw) => {
@@ -1170,8 +1171,42 @@ const getWorkingDays = (startDate, endDate) => {
   return count;
 };
 
+// Syncs any existing/current targets configured directly on the Employee model to the TargetAuditHistory collection
+const syncExistingTargetsToHistory = async () => {
+  try {
+    const employeesWithTargets = await Employee.find({
+      "targetAudit.total": { $exists: true, $gt: 0 },
+      "targetAudit.startDate": { $exists: true },
+      "targetAudit.endDate": { $exists: true }
+    });
+
+    for (const emp of employeesWithTargets) {
+      await TargetAuditHistory.findOneAndUpdate(
+        {
+          employee: emp._id,
+          startDate: emp.targetAudit.startDate,
+          endDate: emp.targetAudit.endDate
+        },
+        {
+          employee: emp._id,
+          total: emp.targetAudit.total,
+          startDate: emp.targetAudit.startDate,
+          endDate: emp.targetAudit.endDate,
+          reminderTime: emp.targetAudit.reminderTime
+        },
+        { upsert: true, new: true }
+      );
+    }
+  } catch (error) {
+    logger.error(`Error syncing existing targets to history: ${error?.message || error}`);
+  }
+};
+
 export const getDashboardMetrics = asyncHandler(async (req, res) => {
   const { unit, department, startDate, endDate, timeframe = 'monthly' } = req.query;
+
+  // Sync existing targets configured directly on the Employee model to the TargetAuditHistory collection
+  await syncExistingTargetsToHistory();
   
   const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
   const end = endDate ? new Date(endDate) : new Date();
@@ -1312,11 +1347,27 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
     }
   ]);
 
-  // 3. Fetch Employees for dynamic targets (usually a small set, so JS logic is fine)
-  const employeeQuery = {};
-  if (unit) employeeQuery.unit = unit;
-  if (department) employeeQuery.department = { $in: [department] };
-  const employees = await Employee.find(employeeQuery).lean();
+  // 3. Fetch overlapping historical target audit configurations
+  const historyQuery = {
+    startDate: { $lte: end },
+    endDate: { $gte: start },
+  };
+
+  const targetHistoryRecords = await TargetAuditHistory.find(historyQuery)
+    .populate({
+      path: "employee",
+      select: "fullName designation role unit department"
+    })
+    .lean();
+
+  let filteredTargets = targetHistoryRecords.filter(t => t.employee && t.employee.role === 'employee');
+
+  if (unit) {
+    filteredTargets = filteredTargets.filter(t => t.employee.unit && String(t.employee.unit) === String(unit));
+  }
+  if (department) {
+    filteredTargets = filteredTargets.filter(t => t.employee.department && t.employee.department.some(d => String(d) === String(department)));
+  }
 
   // 3. Initialize & Populate Period Data
   const periodData = {};
@@ -1402,18 +1453,20 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
     }
   });
 
-  // Dynamic target calculation logic (unchanged for accuracy)
-  employees.forEach(emp => {
-    if (!emp.targetAudit || !emp.targetAudit.total) return;
-    const targetStart = emp.targetAudit.startDate ? new Date(emp.targetAudit.startDate) : start;
-    const targetEnd = emp.targetAudit.endDate ? new Date(emp.targetAudit.endDate) : end;
+  // Dynamic target calculation logic using history
+  filteredTargets.forEach(targetRecord => {
+    const emp = targetRecord.employee;
+    if (!emp) return;
+
+    const targetStart = targetRecord.startDate ? new Date(targetRecord.startDate) : start;
+    const targetEnd = targetRecord.endDate ? new Date(targetRecord.endDate) : end;
     const effectiveStart = new Date(Math.max(start, targetStart));
     const effectiveEnd = new Date(Math.min(end, targetEnd));
     if (effectiveStart > effectiveEnd) return;
 
     const totalWorkingDays = getWorkingDays(targetStart, targetEnd);
     if (totalWorkingDays === 0) return;
-    const targetPerDay = emp.targetAudit.total / totalWorkingDays;
+    const targetPerDay = targetRecord.total / totalWorkingDays;
     
     const desig = (emp.designation || "").toLowerCase();
     const layerKeys = { "plant head": "Plant Head", "hod": "HOD", "shift incharge": "Shift Incharge", "team leader": "Team Leader" };

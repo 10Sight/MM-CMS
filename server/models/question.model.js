@@ -59,6 +59,7 @@ const QuestionSchema = new mongoose.Schema(
         "Process control",
         "5'S",
         "Safety",
+        "Skill",
       ],
       trim: true,
     },

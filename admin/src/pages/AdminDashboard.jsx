@@ -27,6 +27,14 @@ import {
   Calendar,
   Download,
 } from "lucide-react";
+import {
+  TargetVsActualChart,
+  LayerWisePlanActualChart,
+  FailureRateChart,
+  LayerWiseFailureChart,
+  ProcessWiseFailuresTrendChart,
+  ProcessWiseFailureTrendChart,
+} from "@/components/Charts";
 import * as XLSX from 'xlsx';
 import { 
   useGetAuditsQuery, 
@@ -83,7 +91,6 @@ export default function AdminDashboard() {
   const [startDate, setStartDate] = useState(getFirstDayOfCurrentMonth());
   const [endDate, setEndDate] = useState(getLastDayOfCurrentMonth());
   const [timeframe, setTimeframe] = useState("monthly"); // daily | weekly | monthly | yearly
-  const [processTrendMode, setProcessTrendMode] = useState("value"); // value | percent
 
   const { user: currentUser, activeUnitId, setActiveUnitId } = useAuth();
   const userUnitId = currentUser?.unit?._id || currentUser?.unit || '';
@@ -339,39 +346,6 @@ export default function AdminDashboard() {
       .sort((a, b) => b.Fail - a.Fail)
       .slice(0, 10);
   }, [audits]);
-
-  // Processed data for Process wise failures trend chart (value vs percent mode)
-  const processedDashboardMetrics = useMemo(() => {
-    return dashboardMetrics.map(m => {
-      const processes = {};
-      const categoryTotals = {};
-
-      if (m.processes) {
-        Object.keys(m.processes).forEach(cat => {
-          if (cat === "Skilled-wise" || cat === "Uncategorized") return;
-          processes[cat] = m.processes[cat];
-        });
-      }
-
-      if (m.categoryTotals) {
-        Object.keys(m.categoryTotals).forEach(cat => {
-          if (cat === "Skilled-wise" || cat === "Uncategorized") return;
-          categoryTotals[cat] = m.categoryTotals[cat];
-        });
-      }
-
-      const newItem = { ...m, processes, categoryTotals };
-
-      if (processTrendMode === "percent") {
-        Object.keys(newItem.processes).forEach(cat => {
-          const catTotal = newItem.categoryTotals?.[cat] || 0;
-          newItem.processes[cat] = catTotal > 0 ? Number(((newItem.processes[cat] / catTotal) * 100).toFixed(1)) : 0;
-        });
-      }
-
-      return newItem;
-    });
-  }, [dashboardMetrics, processTrendMode]);
 
   // Using specialized API result instead of heavy frontend calculation
   const failureActionPoints = useMemo(() => {
@@ -762,305 +736,15 @@ export default function AdminDashboard() {
 
       {/* Advanced Analytical Charts (LPA Audit Visuals) */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Chart 1: No of LPA Audit Target vs Actual */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">No of LPA Audit Target vs Actual</CardTitle>
-            <CardDescription>Monthly comparison of planned vs completed audits</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboardMetrics}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={25}>
-                    <LabelList dataKey="target" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                  <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={25}>
-                    <LabelList dataKey="actual" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Chart 2: Layer wise Audit nos. of plan vs actual */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Layer wise Audit nos. of plan vs actual</CardTitle>
-            <CardDescription>Performance by designation levels</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={dashboardMetrics.length > 0 ? (
-                    ["Plant Head", "HOD", "Shift Incharge", "Team Leader"].map(layer => {
-                      const latest = dashboardMetrics[dashboardMetrics.length - 1];
-                      return {
-                        name: layer,
-                        Plan: latest?.layers?.[layer]?.plan || 0,
-                        Actual: latest?.layers?.[layer]?.actual || 0
-                      };
-                    })
-                  ) : []}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
-                  <Legend verticalAlign="bottom" height={36}/>
-                  <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20}>
-                    <LabelList dataKey="Plan" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                  <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}>
-                    <LabelList dataKey="Actual" position="top" style={{ fontSize: '10px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Chart 3: Failure % Month wise */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Failure % Month wise</CardTitle>
-            <CardDescription>Trend of audit failure rates over time</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboardMetrics.map(m => ({
-                  ...m,
-                  failureRate: m.totalPoints > 0 ? Math.round((m.failedPoints / m.totalPoints) * 100) : 0
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(val) => `${val}%`} />
-                  <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40}>
-                    <LabelList dataKey="failureRate" position="top" style={{ fontSize: '11px', fontWeight: '500', fill: '#64748b' }} formatter={(val) => `${Math.round(val)}%`} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Chart 4: Layer-wise Failure Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Layer-wise Failure Distribution</CardTitle>
-            <CardDescription>Monthly failures stacked by designation</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboardMetrics.map(m => {
-                  const total = m.totalPoints || 0;
-                  return {
-                    month: m.month,
-                    "Plant Head": total > 0 ? Math.round((m.layers?.["Plant Head"]?.failedPoints / total) * 100) : 0,
-                    "HOD": total > 0 ? Math.round((m.layers?.["HOD"]?.failedPoints / total) * 100) : 0,
-                    "Shift Incharge": total > 0 ? Math.round((m.layers?.["Shift Incharge"]?.failedPoints / total) * 100) : 0,
-                    "Team Leader": total > 0 ? Math.round((m.layers?.["Team Leader"]?.failedPoints / total) * 100) : 0,
-                  };
-                })}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value) => `${value}%`} />
-                  <Legend />
-                  <Bar dataKey="Plant Head" stackId="a" fill="#eab308">
-                    <LabelList dataKey="Plant Head" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
-                  </Bar>
-                  <Bar dataKey="HOD" stackId="a" fill="#f97316">
-                    <LabelList dataKey="HOD" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
-                  </Bar>
-                  <Bar dataKey="Shift Incharge" stackId="a" fill="#10b981">
-                    <LabelList dataKey="Shift Incharge" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
-                  </Bar>
-                  <Bar dataKey="Team Leader" stackId="a" fill="#3b82f6" radius={[4, 4, 0, 0]}>
-                    <LabelList dataKey="Team Leader" position="inside" style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ''} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <TargetVsActualChart dashboardMetrics={dashboardMetrics} />
+        <LayerWisePlanActualChart dashboardMetrics={dashboardMetrics} />
+        <FailureRateChart dashboardMetrics={dashboardMetrics} />
+        <LayerWiseFailureChart dashboardMetrics={dashboardMetrics} />
       </div>
 
-      {/* Full-width Chart 5: Process wise failures trend */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Process wise failures trend
-            </div>
-            <div className="flex items-center border rounded-md p-0.5 bg-muted/50">
-              <Button
-                variant={processTrendMode === "value" ? "secondary" : "ghost"}
-                size="sm"
-                className={`h-7 px-2 text-xs ${processTrendMode === "value" ? "bg-white shadow-sm" : ""}`}
-                onClick={() => setProcessTrendMode("value")}
-              >
-                Numbers
-              </Button>
-              <Button
-                variant={processTrendMode === "percent" ? "secondary" : "ghost"}
-                size="sm"
-                className={`h-7 px-2 text-xs ${processTrendMode === "percent" ? "bg-white shadow-sm" : ""}`}
-                onClick={() => setProcessTrendMode("percent")}
-              >
-                Percentages
-              </Button>
-            </div>
-          </CardTitle>
-          <CardDescription>Failures grouped by question categories (Product Identification, Process Control, etc.). {processTrendMode === 'percent' ? 'Showing % of total points.' : 'Showing absolute failure counts.'}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={processedDashboardMetrics}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis
-                  tick={{ fontSize: 12 }}
-                  unit={processTrendMode === 'percent' ? '%' : ''}
-                  domain={processTrendMode === 'percent' ? [0, 100] : [0, 'auto']}
-                />
-                <Tooltip
-                  formatter={(val) => [`${val}${processTrendMode === 'percent' ? '%' : ''}`, 'Failures']}
-                />
-                <Legend />
-                {(() => {
-                  const allProcesses = new Set();
-                  processedDashboardMetrics.forEach(m => {
-                    Object.keys(m.processes || {}).forEach(p => allProcesses.add(p));
-                  });
-                  return Array.from(allProcesses).map((proc, idx) => (
-                    <Bar
-                      key={proc}
-                      dataKey={`processes.${proc}`}
-                      name={proc}
-                      stackId="p"
-                      fill={PREMIUM_COLORS[idx % PREMIUM_COLORS.length]}
-                    >
-                      <LabelList
-                        dataKey={`processes.${proc}`}
-                        position="inside"
-                        style={{ fontSize: '10px', fontWeight: '500', fill: '#fff' }}
-                        formatter={(val) => val > 0 ? `${val}${processTrendMode === 'percent' ? '%' : ''}` : ''}
-                      />
-                    </Bar>
-                  ));
-                })()}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <ProcessWiseFailuresTrendChart dashboardMetrics={dashboardMetrics} />
 
-      {/* Process Wise Failure Trend */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Process Wise Failure Trend
-          </CardTitle>
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            Top 10 failure-prone processes (Machines). <span className="flex items-center gap-1 text-blue-600 font-medium"><Download className="h-3 w-3" /> Click any bar to export details to Excel</span>
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                layout="vertical"
-                data={processWiseFailureData}
-                margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tick={{ fontSize: 12 }} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={150}
-                  tick={{ fontSize: 11 }}
-                  interval={0}
-                />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-white p-3 border rounded-lg shadow-lg text-xs">
-                          <p className="font-bold mb-1">{label}</p>
-                          <p className="text-muted-foreground mb-2">
-                             {data.department} | {data.line}
-                          </p>
-                          <div className="space-y-1">
-                            {payload.map((entry, index) => (
-                              <div key={index} className="flex items-center justify-between gap-4">
-                                <span style={{ color: entry.color }}>{entry.name}:</span>
-                                <span className="font-semibold">{entry.value}</span>
-                              </div>
-                            ))}
-                          </div>
-                          <p className="mt-2 pt-2 border-t text-[10px] text-blue-600 font-medium animate-pulse flex items-center gap-1">
-                            <Download className="h-2 w-2" /> Click to export detailed Excel
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar
-                  dataKey="Critical Failure"
-                  fill="#be123c"
-                  stackId="a"
-                  name="Critical Failures"
-                  cursor="pointer"
-                  onClick={(data) => handleExportClick(data, 'critical')}
-                >
-                  <LabelList dataKey="Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
-                </Bar>
-                <Bar
-                  dataKey="Non-Critical Failure"
-                  fill="#f43f5e"
-                  stackId="a"
-                  name="Non-Critical Failures"
-                  cursor="pointer"
-                  onClick={(data) => handleExportClick(data, 'non-critical')}
-                >
-                  <LabelList dataKey="Non-Critical Failure" position="inside" style={{ fontSize: '10px', fill: '#fff', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
-                </Bar>
-                <Bar
-                  dataKey="Pass"
-                  fill={CHART_COLORS.success}
-                  stackId="a"
-                  name="Pass Answers"
-                  opacity={0.3}
-                >
-                  <LabelList dataKey="Pass" position="inside" style={{ fontSize: '10px', fill: '#64748b', fontWeight: 'bold' }} formatter={(val) => val > 0 ? Math.round(val) : ""} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+      <ProcessWiseFailureTrendChart data={processWiseFailureData} onExportClick={handleExportClick} />
 
       {/* Failure & Repeated Fail Point Action Plan */}
       <Card>

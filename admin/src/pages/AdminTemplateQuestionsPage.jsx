@@ -376,6 +376,7 @@ export default function AdminTemplateQuestionsPage() {
                   <SelectItem value="Process control">Process control</SelectItem>
                   <SelectItem value="5'S">5'S</SelectItem>
                   <SelectItem value="Safety">Safety</SelectItem>
+                  <SelectItem value="Skill">Skill</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -407,6 +408,7 @@ export default function AdminTemplateQuestionsPage() {
                       <SelectItem value="Process control">Process control</SelectItem>
                       <SelectItem value="5'S">5'S</SelectItem>
                       <SelectItem value="Safety">Safety</SelectItem>
+                      <SelectItem value="Skill">Skill</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -504,6 +506,7 @@ export default function AdminTemplateQuestionsPage() {
                                 <SelectItem value="Process control">Process control</SelectItem>
                                 <SelectItem value="5'S">5'S</SelectItem>
                                 <SelectItem value="Safety">Safety</SelectItem>
+                                <SelectItem value="Skill">Skill</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
