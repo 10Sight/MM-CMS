@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, subDays, subWeeks, subMonths, subYears, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { useGetUnitsQuery, useGetDepartmentsQuery } from "@/store/api";
+import { useAuth } from "@/context/AuthContext";
 
 function dateRangeForTimeframe(tf) {
   const now = new Date();
@@ -34,6 +35,12 @@ function dateRangeForTimeframe(tf) {
 }
 
 export function useChartFilters() {
+  const { user } = useAuth();
+  const role = user?.role;
+  const userUnitId = user?.unit?._id || user?.unit || null;
+  const isAdmin = role === "admin";
+  const isUnitLocked = isAdmin && !!userUnitId;
+
   const [unit, setUnit] = useState("all");
   const [department, setDepartment] = useState("all");
   const [timeframe, setTimeframe] = useState("monthly");
@@ -49,6 +56,13 @@ export function useChartFilters() {
     setEndDate(end);
   }, [timeframe]);
 
+  // Auto-set unit to admin's own unit once user data arrives
+  useEffect(() => {
+    if (isAdmin && userUnitId) {
+      setUnit(userUnitId);
+    }
+  }, [isAdmin, userUnitId]);
+
   useEffect(() => {
     setDepartment("all");
   }, [unit]);
@@ -59,7 +73,10 @@ export function useChartFilters() {
     { skip: unit === "all" }
   );
 
-  const units = unitsRes?.data || [];
+  const allUnits = unitsRes?.data || [];
+  const units = isUnitLocked
+    ? allUnits.filter((u) => String(u._id) === String(userUnitId))
+    : allUnits;
   const departments = deptsRes?.data?.departments || deptsRes?.data || [];
 
   const queryParams = {
@@ -79,5 +96,6 @@ export function useChartFilters() {
     units,
     departments,
     queryParams,
+    isUnitLocked,
   };
 }

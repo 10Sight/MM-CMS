@@ -16,16 +16,17 @@ export default function ChartFilters({
   startDate, setStartDate,
   endDate, setEndDate,
   showTimeframe = true,
+  isUnitLocked = false,
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mt-2">
       {/* Unit */}
-      <Select value={unit} onValueChange={setUnit}>
+      <Select value={unit} onValueChange={setUnit} disabled={isUnitLocked}>
         <SelectTrigger className="h-7 w-[120px] text-xs">
           <SelectValue placeholder="All Units" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Units</SelectItem>
+          {!isUnitLocked && <SelectItem value="all">All Units</SelectItem>}
           {units.map((u) => (
             <SelectItem key={u._id} value={u._id}>
               {u.name}

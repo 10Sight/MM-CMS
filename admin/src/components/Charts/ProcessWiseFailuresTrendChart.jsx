@@ -122,7 +122,7 @@ export default function ProcessWiseFailuresTrendChart() {
                     unit={mode === "percent" ? "%" : ""}
                     domain={mode === "percent" ? [0, 100] : [0, "auto"]}
                   />
-                  <Tooltip formatter={(val) => [`${val}${mode === "percent" ? "%" : ""}`, "Failures"]} />
+                  <Tooltip formatter={(val, name) => [`${val}${mode === "percent" ? "%" : ""}`, name]} />
                   {legendItems.map((item) => (
                     <Bar key={item.name} dataKey={`processes.${item.name}`} name={item.name} stackId="p" fill={item.color}>
                       <LabelList
