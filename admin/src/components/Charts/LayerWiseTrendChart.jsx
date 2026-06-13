@@ -17,7 +17,7 @@ const LEGEND = [
 
 export default function LayerWiseTrendChart() {
   const filters = useChartFilters();
-  const { data: metricsRes, isLoading } = useGetDashboardMetricsQuery(filters.queryParams);
+  const { data: metricsRes, isFetching } = useGetDashboardMetricsQuery(filters.queryParams);
   const dashboardMetrics = metricsRes?.data || [];
   const scrollRef = useRef(null);
 
@@ -53,7 +53,7 @@ export default function LayerWiseTrendChart() {
             </div>
           ))}
         </div>
-        {isLoading ? (
+        {isFetching ? (
           <ChartLoader height={300} />
         ) : (
           <div ref={scrollRef} className="overflow-x-auto">

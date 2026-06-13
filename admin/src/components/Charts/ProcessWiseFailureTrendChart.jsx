@@ -23,7 +23,7 @@ function normalizeAnswer(value) {
 export default function ProcessWiseFailureTrendChart() {
   const filters = useChartFilters();
 
-  const { data: auditsRes, isLoading } = useGetAuditsQuery({
+  const { data: auditsRes, isFetching } = useGetAuditsQuery({
     page: 1,
     limit: 500,
     unit: filters.queryParams.unit,
@@ -140,7 +140,7 @@ export default function ProcessWiseFailureTrendChart() {
         <ChartFilters {...filters} showTimeframe={false} />
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {isFetching ? (
           <ChartLoader height={400} />
         ) : (
           <div style={{ height: Math.max(400, data.length * 50) }}>

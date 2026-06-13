@@ -19,7 +19,7 @@ const PREMIUM_COLORS = [
 export default function ProcessWiseFailuresTrendChart() {
   const [mode, setMode] = useState("value");
   const filters = useChartFilters();
-  const { data: metricsRes, isLoading } = useGetDashboardMetricsQuery(filters.queryParams);
+  const { data: metricsRes, isFetching } = useGetDashboardMetricsQuery(filters.queryParams);
   const dashboardMetrics = metricsRes?.data || [];
   const scrollRef = useRef(null);
 
@@ -108,7 +108,7 @@ export default function ProcessWiseFailuresTrendChart() {
             </div>
           ))}
         </div>
-        {isLoading ? (
+        {isFetching ? (
           <ChartLoader height={384} />
         ) : (
           <div ref={scrollRef} className="overflow-x-auto">

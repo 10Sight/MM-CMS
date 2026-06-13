@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { format, subDays, subWeeks, subMonths, subYears, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
+import { useState, useEffect, useMemo } from "react";
+import { format, subDays, subWeeks, subMonths, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { useGetUnitsQuery, useGetDepartmentsQuery } from "@/store/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -44,17 +44,21 @@ export function useChartFilters() {
   const [unit, setUnit] = useState("all");
   const [department, setDepartment] = useState("all");
   const [timeframe, setTimeframe] = useState("monthly");
+  const [customStart, setCustomStart] = useState(null);
+  const [customEnd, setCustomEnd] = useState(null);
 
-  const initial = dateRangeForTimeframe("monthly");
-  const [startDate, setStartDate] = useState(initial.start);
-  const [endDate, setEndDate] = useState(initial.end);
+  // Compute dates synchronously from timeframe — no useEffect round-trip,
+  // so queryParams never gets an inconsistent timeframe+date combination.
+  const autoRange = useMemo(() => dateRangeForTimeframe(timeframe), [timeframe]);
+  const startDate = customStart ?? autoRange.start;
+  const endDate   = customEnd   ?? autoRange.end;
 
-  // Auto-adjust date range whenever timeframe changes
-  useEffect(() => {
-    const { start, end } = dateRangeForTimeframe(timeframe);
-    setStartDate(start);
-    setEndDate(end);
-  }, [timeframe]);
+  // Switching timeframe resets any manual date overrides.
+  const handleSetTimeframe = (tf) => {
+    setTimeframe(tf);
+    setCustomStart(null);
+    setCustomEnd(null);
+  };
 
   // Auto-set unit to admin's own unit once user data arrives
   useEffect(() => {
@@ -90,9 +94,9 @@ export function useChartFilters() {
   return {
     unit, setUnit,
     department, setDepartment,
-    timeframe, setTimeframe,
-    startDate, setStartDate,
-    endDate, setEndDate,
+    timeframe, setTimeframe: handleSetTimeframe,
+    startDate, setStartDate: setCustomStart,
+    endDate,   setEndDate: setCustomEnd,
     units,
     departments,
     queryParams,

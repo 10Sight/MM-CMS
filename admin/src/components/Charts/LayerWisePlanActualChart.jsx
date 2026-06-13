@@ -13,7 +13,7 @@ const LEGEND = [
 
 export default function LayerWisePlanActualChart() {
   const filters = useChartFilters();
-  const { data: metricsRes, isLoading } = useGetDashboardMetricsQuery(filters.queryParams);
+  const { data: metricsRes, isFetching } = useGetDashboardMetricsQuery(filters.queryParams);
   const dashboardMetrics = metricsRes?.data || [];
   const scrollRef = useRef(null);
 
@@ -51,7 +51,7 @@ export default function LayerWisePlanActualChart() {
             </div>
           ))}
         </div>
-        {isLoading ? (
+        {isFetching ? (
           <ChartLoader height={320} />
         ) : (
           <div ref={scrollRef} className="overflow-x-auto">
