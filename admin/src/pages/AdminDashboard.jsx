@@ -187,7 +187,9 @@ export default function AdminDashboard() {
   const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
     unit: effectiveUnitId,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    status: 'Pending'
+    status: 'Pending',
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   });
   const { data: linesRes } = useGetLinesQuery();
   const { data: machinesRes } = useGetMachinesQuery();
@@ -301,52 +303,6 @@ export default function AdminDashboard() {
 
 
 
-  // --- NEW: Process Wise Failure Trend Data ---
-  const processWiseFailureData = useMemo(() => {
-    if (!Array.isArray(audits)) return [];
-
-    const stats = {}; // Key: "Process Name", Value: { Pass: 0, Fail: 0, CriticalFail: 0, NonCriticalFail: 0 }
-
-    audits.forEach((audit) => {
-      // Per user request: "Process" means "Machine" in this context
-      // Fallback: If machine name is missing, use Line or Department as the identifier
-      const processName = audit.machine?.name || audit.line?.name || audit.department?.name || "N/A";
-      const auditorCategory = audit.auditor?.category || "non-critical";
-
-      if (!stats[processName]) {
-        stats[processName] = { 
-          name: processName, 
-          Pass: 0, 
-          Fail: 0, 
-          "Critical Failure": 0, 
-          "Non-Critical Failure": 0,
-          department: audit.department?.name || "N/A",
-          line: audit.line?.name || "N/A"
-        };
-      }
-
-      if (Array.isArray(audit.answers)) {
-        audit.answers.forEach((ans) => {
-          const normalized = normalizeAnswer(ans.answer);
-          if (normalized === "Pass") {
-            stats[processName].Pass++;
-          } else if (normalized === "Fail") {
-            stats[processName].Fail++;
-            if (auditorCategory === "critical") {
-              stats[processName]["Critical Failure"]++;
-            } else {
-              stats[processName]["Non-Critical Failure"]++;
-            }
-          }
-        });
-      }
-    });
-
-    return Object.values(stats)
-      .sort((a, b) => b.Fail - a.Fail)
-      .slice(0, 10);
-  }, [audits]);
-
   // Using specialized API result instead of heavy frontend calculation
   const failureActionPoints = useMemo(() => {
     const list = failuresRes?.data?.failures || [];
@@ -385,57 +341,6 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Failed to save action plan:", err);
     }
-  };
-
-  const handleExportClick = (data, categoryType) => {
-    if (!data || !data.name) return;
-    
-    const machineName = data.name;
-    const catLabel = categoryType === 'critical' ? 'Critical' : 'Non-Critical';
-    
-    // Filter failures for this machine and category
-    const exportData = [];
-    
-    audits.forEach(audit => {
-      const auditMachine = audit.machine?.name || audit.line?.name || audit.department?.name || "N/A";
-      if (auditMachine !== machineName) return;
-      
-      // Match chart fallback logic: default to 'non-critical' if category is missing
-      const auditCategory = audit.auditor?.category || "non-critical";
-      if (auditCategory !== categoryType) return;
-
-      if (!audit.answers) return;
-      audit.answers.forEach(ans => {
-        const normalized = normalizeAnswer(ans.answer);
-        if (normalized === "Fail") {
-          exportData.push({
-            'Date': audit.date ? format(new Date(audit.date), "yyyy-MM-dd HH:mm") : "N/A",
-            'Department': audit.department?.name || "N/A",
-            'Line': audit.line?.name || "N/A",
-            'Machine': auditMachine,
-            'Auditor': audit.auditor?.fullName || audit.auditor?.name || "N/A",
-            'Auditor Category': catLabel,
-            'Question': ans.question?.questionText || "Unknown Point",
-            'Answer': ans.answer || "Fail",
-            'Remark': ans.comment || ans.remark || "N/A",
-            'Action Plan': ans.actionPlan || "N/A",
-            'Owner': ans.actionOwner || "N/A",
-            'Deadline': ans.actionDeadline ? format(new Date(ans.actionDeadline), "yyyy-MM-dd") : "N/A",
-            'Status': ans.actionStatus || "Pending"
-          });
-        }
-      });
-    });
-
-    if (exportData.length === 0) {
-      alert("No failure records found for this selection.");
-      return;
-    }
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Failures");
-    XLSX.writeFile(wb, `${machineName.replace(/[/\\?%*:|"<>]/g, '-')}_${catLabel}_Failures.xlsx`);
   };
 
   const unitScopeLabel = useMemo(() => {
@@ -744,7 +649,7 @@ export default function AdminDashboard() {
 
       <ProcessWiseFailuresTrendChart dashboardMetrics={dashboardMetrics} />
 
-      <ProcessWiseFailureTrendChart data={processWiseFailureData} onExportClick={handleExportClick} />
+      <ProcessWiseFailureTrendChart />
 
       {/* Failure & Repeated Fail Point Action Plan */}
       <Card>

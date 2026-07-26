@@ -206,6 +206,8 @@ export default function SuperAdminDashboard() {
   const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
     unit: selectedUnit !== 'all' ? selectedUnit : undefined,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
     status: 'Pending'
   });
 

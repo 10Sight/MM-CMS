@@ -140,46 +140,21 @@ export const registerEmployee = asyncHandler(async (req, res) => {
 export const loginEmployee = asyncHandler(async (req, res) => {
   const { username, password, remember } = req.body;
 
-  console.log('Login attempt:', { username, password: password ? '***' : 'missing' });
+  // Match by username or employeeId in a single indexed query; skip population
+  // until credentials are verified so failed/invalid attempts don't pay for it.
+  const employee = await Employee.findOne({
+    $or: [{ username: username.toLowerCase() }, { employeeId: username.toUpperCase() }],
+  }).select("+password");
 
-  // Try to find user by username first, then fallback to employeeId for backward compatibility
-  let employee = await Employee.findOne({
-    username: username.toLowerCase()
-  })
-    .select("+password")
-    .populate('department', 'name description')
-    .populate('unit', 'name description');
-
-  // If not found by username, try by employeeId (for existing users)
   if (!employee) {
-    console.log('User not found by username, trying employeeId...');
-    employee = await Employee.findOne({
-      employeeId: username.toUpperCase()
-    })
-      .select("+password")
-      .populate('department', 'name description')
-      .populate('unit', 'name description');
-  }
-
-  console.log('Employee found:', employee ? 'Yes' : 'No');
-  if (!employee) {
-    // Get some info about available users for debugging
-    const totalUsers = await Employee.countDocuments();
-    const userSample = await Employee.findOne({}, 'employeeId username fullName').exec();
-    console.log(`Total users in DB: ${totalUsers}`);
-    if (userSample) {
-      console.log('Sample user:', {
-        employeeId: userSample.employeeId,
-        username: userSample.username,
-        fullName: userSample.fullName
-      });
-    }
     throw new ApiError(401, "User not found. Try using your Employee ID as username if you're an existing user.");
   }
 
   const isMatch = await employee.comparePassword(password);
-  console.log('Password match:', isMatch);
   if (!isMatch) throw new ApiError(401, "Invalid password");
+
+  await employee.populate('department', 'name description');
+  await employee.populate('unit', 'name description');
 
   const token = employee.generateJWT();
   const isProd = EVN.NODE_ENV === 'production';
@@ -195,7 +170,6 @@ export const loginEmployee = asyncHandler(async (req, res) => {
 
   res.cookie("accessToken", token, cookieOptions);
 
-  console.log('Login successful for:', employee.fullName);
   return res.status(200).json(new ApiResponse(200, { employee }, "Login successful"));
 });
 

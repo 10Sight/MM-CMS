@@ -27,6 +27,32 @@ const AUDIT_EMAIL_LOGO_URL = EVN.CLIENT_URL
   ? `${EVN.CLIENT_URL.replace(/\/+$/, "")}/motherson+marelli.png`
   : null;
 
+// Shared date-range matcher for all audit list/aggregation endpoints.
+// Matches audits whose logical `date` OR creation timestamp `createdAt` falls in range,
+// so audits backdated relative to when they were entered are still found consistently
+// across /api/audits, /api/audits/metrics and /api/audits/failures.
+const buildDateOrCreatedAtMatch = (startInput, endInput) => {
+  const start = startInput ? new Date(startInput) : null;
+  const end = endInput ? new Date(endInput) : null;
+  if (!start && !end) return null;
+
+  const dateRange = {};
+  const createdAtRange = {};
+  if (start) { dateRange.$gte = start; createdAtRange.$gte = start; }
+  if (end) {
+    end.setHours(23, 59, 59, 999);
+    dateRange.$lte = end;
+    createdAtRange.$lte = end;
+  }
+
+  return {
+    $or: [
+      Object.keys(dateRange).length ? { date: dateRange } : {},
+      Object.keys(createdAtRange).length ? { createdAt: createdAtRange } : {}
+    ]
+  };
+};
+
 export const createAudit = asyncHandler(async (req, res) => {
   const { date, line, machine, process, unit, lineLeader, shift, shiftIncharge, answers, lineRating, machineRating, processRating, unitRating, department } = req.body;
 
@@ -212,30 +238,11 @@ export const getAudits = asyncHandler(async (req, res) => {
   }
 
   // Add date range filter if provided (match either logical audit date or creation timestamp)
-  if (req.query.startDate || req.query.endDate) {
-    const start = req.query.startDate ? new Date(req.query.startDate) : null;
-    const end = req.query.endDate ? new Date(req.query.endDate) : null;
-
-    const dateRange = {};
-    const createdAtRange = {};
-    if (start) { dateRange.$gte = start; createdAtRange.$gte = start; }
-    if (end) { 
-      end.setHours(23, 59, 59, 999);
-      dateRange.$lte = end; 
-      createdAtRange.$lte = end; 
-    }
-
+  const dateMatch = buildDateOrCreatedAtMatch(req.query.startDate, req.query.endDate);
+  if (dateMatch) {
     // Combine with any existing query via $and
     const base = Object.keys(query).length ? [query] : [];
-    query = {
-      $and: [
-        ...base,
-        { $or: [
-          Object.keys(dateRange).length ? { date: dateRange } : {},
-          Object.keys(createdAtRange).length ? { createdAt: createdAtRange } : {}
-        ]}
-      ]
-    };
+    query = { $and: [...base, dateMatch] };
   }
 
   // Optional filters: line, machine, unit, shift, department
@@ -377,29 +384,10 @@ const buildAuditQueryForExport = (req) => {
     query = { auditor: req.query.auditor };
   }
 
-  if (req.query.startDate || req.query.endDate) {
-    const start = req.query.startDate ? new Date(req.query.startDate) : null;
-    const end = req.query.endDate ? new Date(req.query.endDate) : null;
-
-    const dateRange = {};
-    const createdAtRange = {};
-    if (start) { dateRange.$gte = start; createdAtRange.$gte = start; }
-    if (end) { 
-      end.setHours(23, 59, 59, 999);
-      dateRange.$lte = end; 
-      createdAtRange.$lte = end; 
-    }
-
+  const exportDateMatch = buildDateOrCreatedAtMatch(req.query.startDate, req.query.endDate);
+  if (exportDateMatch) {
     const base = Object.keys(query).length ? [query] : [];
-    query = {
-      $and: [
-        ...base,
-        { $or: [
-          Object.keys(dateRange).length ? { date: dateRange } : {},
-          Object.keys(createdAtRange).length ? { createdAt: createdAtRange } : {}
-        ]}
-      ]
-    };
+    query = { $and: [...base, exportDateMatch] };
   }
 
   if (req.query.line) query.line = req.query.line;
@@ -1236,12 +1224,7 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
   const currentGroupId = groupIds[timeframe] || groupIds.monthly;
 
   // 1. Optimized Audit Aggregation
-  const matchQuery = {
-    $or: [
-      { date: { $gte: start, $lte: end } },
-      { createdAt: { $gte: start, $lte: end } }
-    ]
-  };
+  const matchQuery = buildDateOrCreatedAtMatch(start, end) || {};
   if (unit) matchQuery.unit = new mongoose.Types.ObjectId(unit);
   if (department) matchQuery.department = new mongoose.Types.ObjectId(department);
 
@@ -1530,18 +1513,18 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const skip = (page - 1) * limit;
 
-  const query = {};
-  if (unit) query.unit = unit;
-  if (department) query.department = department;
-  if (line) query.line = line;
-  if (machine) query.machine = machine;
+  const baseQuery = {};
+  if (unit) baseQuery.unit = unit;
+  if (department) baseQuery.department = department;
+  if (line) baseQuery.line = line;
+  if (machine) baseQuery.machine = machine;
 
-  // Date range filter
-  if (startDate || endDate) {
-    query.date = {};
-    if (startDate) query.date.$gte = new Date(startDate);
-    if (endDate) query.date.$lte = new Date(endDate);
-  }
+  // Date range filter (matches either logical audit date or creation timestamp,
+  // consistent with /api/audits and /api/audits/metrics)
+  const failuresDateMatch = buildDateOrCreatedAtMatch(startDate, endDate);
+  const query = failuresDateMatch
+    ? { $and: [baseQuery, failuresDateMatch] }
+    : baseQuery;
 
   const audits = await Audit.find(query)
     .populate("unit")

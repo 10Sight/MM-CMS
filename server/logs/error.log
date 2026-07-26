@@ -51198,3 +51198,8 @@
 [13 Jun, 2026 - 15:45:49:4549] [31merror[39m: [31mTarget audit reminder job failed: connection <monitor> to 159.41.169.18:27017 timed out[39m
 [13 Jun, 2026 - 15:45:52:4552] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5010ms (connectTimeoutMS: 5000)[39m
 [13 Jun, 2026 - 15:46:02:462] [31merror[39m: [31mTarget audit reminder job failed: Socket 'secureConnect' timed out after 5009ms (connectTimeoutMS: 5000)[39m
+[13 Jun, 2026 - 17:28:31:2831] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[13 Jun, 2026 - 17:28:31:2831] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[13 Jun, 2026 - 17:28:34:2834] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[13 Jun, 2026 - 17:32:52:3252] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-00.knfen.mongodb.net[39m
+[13 Jun, 2026 - 17:32:56:3256] [31merror[39m: [31mTarget audit reminder job failed: getaddrinfo ENOTFOUND cluster0-shard-00-02.knfen.mongodb.net[39m
