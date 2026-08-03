@@ -40,16 +40,24 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export default function TargetVsActualChart() {
+export default function TargetVsActualChart({
+  dashboardMetrics: metricsProp,
+  isFetching: isFetchingProp,
+  timeframe: timeframeProp,
+  hideFilters = false,
+}) {
   const filters = useChartFilters();
-  const { data: metricsRes, isFetching } = useGetDashboardMetricsQuery(filters.queryParams);
-  const rawMetrics = metricsRes?.data || [];
+  const usingProps = !!metricsProp;
+  const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
+  const rawMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
+  const isFetching = usingProps ? !!isFetchingProp : queryFetching;
+  const timeframe = usingProps ? (timeframeProp ?? filters.timeframe) : filters.timeframe;
   const scrollRef = useRef(null);
 
   // Attach computed `delayed` to each period entry
   const dashboardMetrics = rawMetrics.map((period) => ({
     ...period,
-    delayed: computeChartDelayed(period, filters.timeframe),
+    delayed: computeChartDelayed(period, timeframe),
   }));
 
   useEffect(() => {
@@ -63,7 +71,7 @@ export default function TargetVsActualChart() {
       <CardHeader>
         <CardTitle className="text-base font-semibold">No of LPA Audit Target vs Actual</CardTitle>
         <CardDescription>Monthly comparison of planned vs completed audits, including delayed count</CardDescription>
-        <ChartFilters {...filters} />
+        {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-4 mb-3">
@@ -82,30 +90,43 @@ export default function TargetVsActualChart() {
         {isFetching ? (
           <ChartLoader height={320} />
         ) : (
-          <div ref={scrollRef} className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(500, dashboardMetrics.length * 95) }}>
+          <div className="flex">
+            <div style={{ width: 60, flexShrink: 0 }}>
               <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={dashboardMetrics} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-                  <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20}>
-                    <LabelList dataKey="target" position="top" style={{ fontSize: "11px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                  <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={20}>
-                    <LabelList dataKey="actual" position="top" style={{ fontSize: "11px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                  <Bar dataKey="delayed" name="Delayed" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={20}>
-                    <LabelList
-                      dataKey="delayed"
-                      position="top"
-                      style={{ fontSize: "11px", fontWeight: "500", fill: "#92400e" }}
-                      formatter={(val) => (Math.round(val) > 0 ? Math.round(val) : "")}
-                    />
-                  </Bar>
+                <BarChart data={dashboardMetrics} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
+                  <XAxis dataKey="month" tick={false} axisLine={false} tickLine={false} height={30} />
+                  <YAxis width={50} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Bar dataKey="target" fill="transparent" isAnimationActive={false} barSize={20} />
+                  <Bar dataKey="actual" fill="transparent" isAnimationActive={false} barSize={20} />
+                  <Bar dataKey="delayed" fill="transparent" isAnimationActive={false} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div ref={scrollRef} className="flex-1 overflow-x-auto">
+              <div style={{ minWidth: Math.max(500, dashboardMetrics.length * 95) }}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={dashboardMetrics} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} height={30} />
+                    <YAxis hide />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+                    <Bar dataKey="target" name="Target" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20}>
+                      <LabelList dataKey="target" position="top" style={{ fontSize: "11px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
+                    </Bar>
+                    <Bar dataKey="actual" name="Actual" fill="#84cc16" radius={[4, 4, 0, 0]} barSize={20}>
+                      <LabelList dataKey="actual" position="top" style={{ fontSize: "11px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
+                    </Bar>
+                    <Bar dataKey="delayed" name="Delayed" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={20}>
+                      <LabelList
+                        dataKey="delayed"
+                        position="top"
+                        style={{ fontSize: "11px", fontWeight: "500", fill: "#92400e" }}
+                        formatter={(val) => (Math.round(val) > 0 ? Math.round(val) : "")}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}

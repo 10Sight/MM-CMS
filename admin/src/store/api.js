@@ -424,6 +424,7 @@ export const {
   useUpdateAuditActionPlanMutation,
   useGetDashboardMetricsQuery,
   useGetAuditFailuresQuery,
+  useLazyGetAuditFailuresQuery,
   useGetDepartmentsQuery,
   useGetDepartmentByIdQuery,
   useGetDepartmentStatsQuery,

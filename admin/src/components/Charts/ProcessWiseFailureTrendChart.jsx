@@ -20,16 +20,17 @@ function normalizeAnswer(value) {
   return null;
 }
 
-export default function ProcessWiseFailureTrendChart() {
+export default function ProcessWiseFailureTrendChart({ queryParams, hideFilters = false }) {
   const filters = useChartFilters();
+  const effectiveParams = queryParams || filters.queryParams;
 
   const { data: auditsRes, isFetching } = useGetAuditsQuery({
     page: 1,
     limit: 500,
-    unit: filters.queryParams.unit,
-    department: filters.queryParams.department,
-    startDate: filters.queryParams.startDate,
-    endDate: filters.queryParams.endDate,
+    unit: effectiveParams.unit,
+    department: effectiveParams.department,
+    startDate: effectiveParams.startDate,
+    endDate: effectiveParams.endDate,
   });
 
   const audits = useMemo(() => {
@@ -137,7 +138,7 @@ export default function ProcessWiseFailureTrendChart() {
         <p className="text-sm text-muted-foreground">
           Top 10 failure-prone processes across selected filters
         </p>
-        <ChartFilters {...filters} showTimeframe={false} />
+        {!hideFilters && <ChartFilters {...filters} showTimeframe={false} />}
       </CardHeader>
       <CardContent>
         {isFetching ? (

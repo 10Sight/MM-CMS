@@ -8,10 +8,16 @@ import ChartLoader from "./ChartLoader";
 
 const LEGEND = [{ name: "Failure %", color: "#0891b2" }];
 
-export default function FailureRateChart() {
+export default function FailureRateChart({
+  dashboardMetrics: metricsProp,
+  isLoading: isLoadingProp,
+  hideFilters = false,
+}) {
   const filters = useChartFilters();
-  const { data: metricsRes, isLoading } = useGetDashboardMetricsQuery(filters.queryParams);
-  const dashboardMetrics = metricsRes?.data || [];
+  const usingProps = !!metricsProp;
+  const { data: metricsRes, isLoading: queryLoading } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
+  const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
+  const isLoading = usingProps ? !!isLoadingProp : queryLoading;
   const scrollRef = useRef(null);
 
   const data = dashboardMetrics.map((m) => ({
@@ -30,7 +36,7 @@ export default function FailureRateChart() {
       <CardHeader>
         <CardTitle className="text-base font-semibold">Failure % Month wise</CardTitle>
         <CardDescription>Trend of audit failure rates over time</CardDescription>
-        <ChartFilters {...filters} />
+        {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-4 mb-3">
@@ -44,19 +50,30 @@ export default function FailureRateChart() {
         {isLoading ? (
           <ChartLoader height={320} />
         ) : (
-          <div ref={scrollRef} className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(500, data.length * 80) }}>
+          <div className="flex">
+            <div style={{ width: 65, flexShrink: 0 }}>
               <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(val) => `${val}%`} />
-                  <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40}>
-                    <LabelList dataKey="failureRate" position="top" style={{ fontSize: "11px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => `${Math.round(val)}%`} />
-                  </Bar>
+                <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
+                  <XAxis dataKey="month" tick={false} axisLine={false} tickLine={false} />
+                  <YAxis width={55} unit="%" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Bar dataKey="failureRate" fill="transparent" isAnimationActive={false} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div ref={scrollRef} className="flex-1 overflow-x-auto">
+              <div style={{ minWidth: Math.max(500, data.length * 80) }}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip formatter={(val) => `${val}%`} />
+                    <Bar dataKey="failureRate" name="Failure %" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={40}>
+                      <LabelList dataKey="failureRate" position="top" style={{ fontSize: "11px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => `${Math.round(val)}%`} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}

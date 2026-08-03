@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from "react";
-import { useGetAuditFailuresQuery, useUpdateAuditActionPlanMutation, useGetUnitsQuery, useGetDepartmentsQuery, useGetLinesQuery, useGetMachinesQuery } from "@/store/api";
+import { useGetAuditFailuresQuery, useLazyGetAuditFailuresQuery, useUpdateAuditActionPlanMutation, useGetUnitsQuery, useGetDepartmentsQuery, useGetLinesQuery, useGetMachinesQuery } from "@/store/api";
+import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +29,10 @@ import {
 import * as XLSX from 'xlsx';
 
 export default function FailureActionPlanPage() {
+  const { user: currentUser } = useAuth();
+  const role = currentUser?.role;
+  const userUnitId = currentUser?.unit?._id || currentUser?.unit || '';
+
   // Filters
   const [filters, setFilters] = useState({
     unit: "all",
@@ -40,9 +46,12 @@ export default function FailureActionPlanPage() {
   const [page, setPage] = useState(1);
   const limit = 20;
 
+  // Non-superadmin users are locked to their own unit; superadmins can pick any unit.
+  const effectiveUnit = role === 'superadmin' ? filters.unit : userUnitId;
+
   const queryParams = useMemo(() => {
     const params = { page, limit };
-    if (filters.unit !== "all") params.unit = filters.unit;
+    if (effectiveUnit && effectiveUnit !== "all") params.unit = effectiveUnit;
     if (filters.department !== "all") params.department = filters.department;
     if (filters.line !== "all") params.line = filters.line;
     if (filters.machine !== "all") params.machine = filters.machine;
@@ -50,12 +59,12 @@ export default function FailureActionPlanPage() {
     if (filters.startDate) params.startDate = filters.startDate;
     if (filters.endDate) params.endDate = filters.endDate;
     return params;
-  }, [filters, page]);
+  }, [effectiveUnit, filters, page]);
 
   // Data
   const { data: failuresRes, isLoading, refetch } = useGetAuditFailuresQuery(queryParams);
-  const { data: unitsRes } = useGetUnitsQuery();
-  const { data: deptsRes } = useGetDepartmentsQuery({ unit: filters.unit !== "all" ? filters.unit : undefined }, { skip: filters.unit === "all" });
+  const { data: unitsRes } = useGetUnitsQuery(undefined, { skip: role !== 'superadmin' });
+  const { data: deptsRes } = useGetDepartmentsQuery({ unit: effectiveUnit !== "all" ? effectiveUnit : undefined }, { skip: !effectiveUnit || effectiveUnit === "all" });
   const { data: linesRes } = useGetLinesQuery({ department: filters.department !== "all" ? filters.department : undefined }, { skip: filters.department === "all" });
   const { data: machinesRes } = useGetMachinesQuery({ line: filters.line !== "all" ? filters.line : undefined }, { skip: filters.line === "all" });
 
@@ -67,9 +76,39 @@ export default function FailureActionPlanPage() {
   const lines = linesRes?.data || [];
   const machines = machinesRes?.data || [];
 
-  // Reset page when filters change
+  // Row selection for export (keyed by answerId so it survives page changes)
+  const [selectedRows, setSelectedRows] = useState({});
+  const selectedCount = Object.keys(selectedRows).length;
+
+  const toggleRowSelected = (point) => {
+    setSelectedRows(prev => {
+      const next = { ...prev };
+      if (next[point.answerId]) delete next[point.answerId];
+      else next[point.answerId] = point;
+      return next;
+    });
+  };
+
+  const isPageFullySelected = failures.length > 0 && failures.every(f => selectedRows[f.answerId]);
+
+  const toggleSelectPage = () => {
+    setSelectedRows(prev => {
+      const next = { ...prev };
+      if (isPageFullySelected) {
+        failures.forEach(f => delete next[f.answerId]);
+      } else {
+        failures.forEach(f => { next[f.answerId] = f; });
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedRows({});
+
+  // Reset page and selection when filters change
   React.useEffect(() => {
     setPage(1);
+    setSelectedRows({});
   }, [filters]);
 
   // Stats
@@ -124,30 +163,53 @@ export default function FailureActionPlanPage() {
     }
   };
 
-  const handleExport = () => {
-    const data = failures.map(f => ({
-      'Date': f.date ? format(new Date(f.date), 'dd-MM-yyyy') : 'N/A',
-      'Unit': f.unit,
-      'Department': f.department,
-      'Line': f.line,
-      'Machine': f.machine,
-      'Auditor': f.auditor,
-      'Point (Question)': f.question,
-      'Root Cause': f.rootCause || '',
-      'Systemic Root Cause': f.systemicRootCause || '',
-      'System Improvement': f.systemImprovement || '',
-      'Action Plan': f.actionPlan,
-      'Owner': f.actionOwner,
-      'Deadline': f.actionDeadline ? format(new Date(f.actionDeadline), 'dd-MM-yyyy') : '',
-      'Status': f.actionStatus,
-      'Repeated': f.isRepeated ? 'Yes' : 'No',
-      'Repeat Count': f.repeatCount
-    }));
+  const [triggerGetFailures] = useLazyGetAuditFailuresQuery();
+  const [isExporting, setIsExporting] = useState(false);
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Failures");
-    XLSX.writeFile(wb, `Audit_Failures_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      let rows;
+      if (selectedCount > 0) {
+        // Export only the rows the user explicitly selected.
+        rows = Object.values(selectedRows);
+      } else {
+        // No selection: export every failure matching the current filters, across all pages.
+        const res = await triggerGetFailures({ ...queryParams, page: 1, limit: 100000 }).unwrap();
+        rows = res?.data?.failures || [];
+      }
+
+      if (rows.length === 0) return;
+
+      const data = rows.map(f => ({
+        'Date': f.date ? format(new Date(f.date), 'dd-MM-yyyy') : 'N/A',
+        'Unit': f.unit,
+        'Department': f.department,
+        'Line': f.line,
+        'Machine': f.machine,
+        'Auditor': f.auditor,
+        'Point (Question)': f.question,
+        'Remark': f.remark || '',
+        'Root Cause': f.rootCause || '',
+        'Systemic Root Cause': f.systemicRootCause || '',
+        'System Improvement': f.systemImprovement || '',
+        'Action Plan': f.actionPlan,
+        'Owner': f.actionOwner,
+        'Deadline': f.actionDeadline ? format(new Date(f.actionDeadline), 'dd-MM-yyyy') : '',
+        'Status': f.actionStatus,
+        'Repeated': f.isRepeated ? 'Yes' : 'No',
+        'Repeat Count': f.repeatCount
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Failures");
+      XLSX.writeFile(wb, `Audit_Failures_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    } catch (err) {
+      console.error("Failed to export failures:", err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -157,9 +219,16 @@ export default function FailureActionPlanPage() {
           <h1 className="text-3xl font-bold tracking-tight">Failure Action Plans</h1>
           <p className="text-muted-foreground">Manage and track remediation plans for all audit failures and recurring issues.</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleExport} variant="outline" className="flex items-center gap-2">
-            <Download className="h-4 w-4" /> Export Excel
+        <div className="flex items-center gap-2">
+          {selectedCount > 0 && (
+            <>
+              <Badge variant="secondary" className="text-xs">{selectedCount} selected</Badge>
+              <Button onClick={clearSelection} variant="ghost" size="sm">Clear</Button>
+            </>
+          )}
+          <Button onClick={handleExport} variant="outline" className="flex items-center gap-2" disabled={isExporting}>
+            <Download className="h-4 w-4" />
+            {isExporting ? "Exporting..." : selectedCount > 0 ? `Export Selected (${selectedCount})` : "Export Excel"}
           </Button>
           <Button onClick={() => refetch()} variant="secondary" className="flex items-center gap-2">
             <RotateCcw className="h-4 w-4" /> Refresh
@@ -230,18 +299,27 @@ export default function FailureActionPlanPage() {
         </CardHeader>
         <CardContent className="p-4 pt-0">
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Unit</Label>
-              <Select value={filters.unit} onValueChange={(val) => setFilters({ ...filters, unit: val })}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="All Units" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Units</SelectItem>
-                  {units.map(u => <SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {role === 'superadmin' ? (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Unit</Label>
+                <Select value={filters.unit} onValueChange={(val) => setFilters({ ...filters, unit: val })}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="All Units" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Units</SelectItem>
+                    {units.map(u => <SelectItem key={u._id} value={u._id}>{u.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Unit</Label>
+                <div className="h-8 flex items-center text-xs px-3 rounded-md border bg-muted text-muted-foreground">
+                  {currentUser?.unit?.name || "Your unit"}
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-xs">Department</Label>
               <Select value={filters.department} onValueChange={(val) => setFilters({ ...filters, department: val })}>
@@ -318,10 +396,18 @@ export default function FailureActionPlanPage() {
       {/* Main Table */}
       <Card>
         <CardContent className="p-0">
-          <div className="border rounded-md overflow-hidden">
-            <Table>
+          <div className="border rounded-md">
+            <Table containerClassName="overflow-x-visible">
               <TableHeader>
                 <TableRow className="bg-muted/50">
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={isPageFullySelected}
+                      onCheckedChange={toggleSelectPage}
+                      disabled={isLoading || failures.length === 0}
+                      aria-label="Select all rows on this page"
+                    />
+                  </TableHead>
                   <TableHead className="whitespace-nowrap">Date</TableHead>
                   <TableHead className="whitespace-nowrap">Department</TableHead>
                   <TableHead className="min-w-[200px]">Failure Point</TableHead>
@@ -337,12 +423,19 @@ export default function FailureActionPlanPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-20 text-muted-foreground animate-pulse font-medium">
+                    <TableCell colSpan={11} className="text-center py-20 text-muted-foreground animate-pulse font-medium">
                       Loading failure data...
                     </TableCell>
                   </TableRow>
                 ) : failures.map((point) => (
-                  <TableRow key={point.answerId} className="group hover:bg-muted/30 transition-colors">
+                  <TableRow key={point.answerId} className="group hover:bg-muted/30 transition-colors" data-state={selectedRows[point.answerId] ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={!!selectedRows[point.answerId]}
+                        onCheckedChange={() => toggleRowSelected(point)}
+                        aria-label="Select row"
+                      />
+                    </TableCell>
                     <TableCell className="font-medium whitespace-nowrap">
                       {point.date ? format(new Date(point.date), "dd MMM yy") : "N/A"}
                     </TableCell>
@@ -352,6 +445,11 @@ export default function FailureActionPlanPage() {
                     </TableCell>
                     <TableCell className="min-w-[200px] max-w-[300px] break-words whitespace-normal">
                       <div className="text-sm font-medium" title={point.question}>{point.question}</div>
+                      {point.remark && (
+                        <div className="text-xs text-muted-foreground italic mt-1" title={point.remark}>
+                          Remark: {point.remark}
+                        </div>
+                      )}
                       <div className="flex gap-1 mt-1">
                         {point.isRepeated && (
                           <Badge variant="destructive" className="text-[9px] h-4 px-1">
@@ -400,7 +498,7 @@ export default function FailureActionPlanPage() {
                 ))}
                 {!isLoading && failures.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-20 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-20 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                         <CheckCircle2 className="h-10 w-10 text-emerald-500 opacity-20" />
                         <p className="font-medium">All clear! No pending failure points found.</p>
@@ -493,6 +591,11 @@ export default function FailureActionPlanPage() {
               <div className="grid grid-cols-4 gap-2">
                 <span className="text-muted-foreground font-medium">Point:</span>
                 <span className="col-span-3 text-destructive font-medium">{editingPoint?.question}</span>
+              </div>
+              <Separator className="my-1" />
+              <div className="grid grid-cols-4 gap-2">
+                <span className="text-muted-foreground font-medium">Remark:</span>
+                <span className="col-span-3">{editingPoint?.remark || "N/A"}</span>
               </div>
             </div>
 

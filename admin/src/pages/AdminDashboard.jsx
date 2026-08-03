@@ -639,15 +639,15 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Advanced Analytical Charts (LPA Audit Visuals) */}
+      {/* Advanced Analytical Charts (LPA Audit Visuals) — each chart uses its own independent filters */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <TargetVsActualChart dashboardMetrics={dashboardMetrics} />
-        <LayerWisePlanActualChart dashboardMetrics={dashboardMetrics} />
-        <FailureRateChart dashboardMetrics={dashboardMetrics} />
-        <LayerWiseFailureChart dashboardMetrics={dashboardMetrics} />
+        <TargetVsActualChart />
+        <LayerWisePlanActualChart />
+        <FailureRateChart />
+        <LayerWiseFailureChart />
       </div>
 
-      <ProcessWiseFailuresTrendChart dashboardMetrics={dashboardMetrics} />
+      <ProcessWiseFailuresTrendChart />
 
       <ProcessWiseFailureTrendChart />
 

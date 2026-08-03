@@ -1123,6 +1123,11 @@ export const updateAuditActionPlan = asyncHandler(async (req, res) => {
   const audit = await Audit.findById(id);
   if (!audit) throw new ApiError(404, "Audit not found");
 
+  // Non-superadmins may only update action plans for audits within their own unit.
+  if (req.user.role !== "superadmin" && audit.unit.toString() !== req.user.unit?.toString()) {
+    throw new ApiError(403, "You do not have permission to update this audit's action plan");
+  }
+
   // Find the specific answer in the answers array
   const answerIndex = audit.answers.findIndex((ans) => ans._id.toString() === answerId);
   if (answerIndex === -1) throw new ApiError(404, "Answer not found in this audit");
@@ -1518,6 +1523,11 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
   if (department) baseQuery.department = department;
   if (line) baseQuery.line = line;
   if (machine) baseQuery.machine = machine;
+
+  // Non-superadmins are restricted to their own unit, regardless of the requested unit filter.
+  if (req.user.role !== "superadmin") {
+    baseQuery.unit = req.user.unit;
+  }
 
   // Date range filter (matches either logical audit date or creation timestamp,
   // consistent with /api/audits and /api/audits/metrics)

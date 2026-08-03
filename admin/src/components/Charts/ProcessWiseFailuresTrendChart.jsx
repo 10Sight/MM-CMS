@@ -16,11 +16,17 @@ const PREMIUM_COLORS = [
   "#EC4899", "#F59E0B", "#06B6D4", "#84CC16",
 ];
 
-export default function ProcessWiseFailuresTrendChart() {
+export default function ProcessWiseFailuresTrendChart({
+  dashboardMetrics: metricsProp,
+  isFetching: isFetchingProp,
+  hideFilters = false,
+}) {
   const [mode, setMode] = useState("value");
   const filters = useChartFilters();
-  const { data: metricsRes, isFetching } = useGetDashboardMetricsQuery(filters.queryParams);
-  const dashboardMetrics = metricsRes?.data || [];
+  const usingProps = !!metricsProp;
+  const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
+  const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
+  const isFetching = usingProps ? !!isFetchingProp : queryFetching;
   const scrollRef = useRef(null);
 
   const processedData = useMemo(() => {
@@ -97,7 +103,7 @@ export default function ProcessWiseFailuresTrendChart() {
           Failures grouped by question categories (Product Identification, Process Control, etc.).{" "}
           {mode === "percent" ? "Showing % of total points." : "Showing absolute failure counts."}
         </CardDescription>
-        <ChartFilters {...filters} />
+        {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-4 mb-3">
@@ -111,30 +117,47 @@ export default function ProcessWiseFailuresTrendChart() {
         {isFetching ? (
           <ChartLoader height={384} />
         ) : (
-          <div ref={scrollRef} className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(500, processedData.length * 100) }}>
+          <div className="flex">
+            <div style={{ width: 65, flexShrink: 0 }}>
               <ResponsiveContainer width="100%" height={384}>
-                <BarChart data={processedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <BarChart data={processedData} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
+                  <XAxis dataKey="month" tick={false} axisLine={false} tickLine={false} />
                   <YAxis
+                    width={55}
                     tick={{ fontSize: 12 }}
                     unit={mode === "percent" ? "%" : ""}
                     domain={mode === "percent" ? [0, 100] : [0, "auto"]}
                   />
-                  <Tooltip formatter={(val, name) => [`${val}${mode === "percent" ? "%" : ""}`, name]} />
                   {legendItems.map((item) => (
-                    <Bar key={item.name} dataKey={`processes.${item.name}`} name={item.name} stackId="p" fill={item.color}>
-                      <LabelList
-                        dataKey={`processes.${item.name}`}
-                        position="inside"
-                        style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }}
-                        formatter={(val) => val > 0 ? `${val}${mode === "percent" ? "%" : ""}` : ""}
-                      />
-                    </Bar>
+                    <Bar key={item.name} dataKey={`processes.${item.name}`} stackId="p" fill="transparent" isAnimationActive={false} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div ref={scrollRef} className="flex-1 overflow-x-auto">
+              <div style={{ minWidth: Math.max(500, processedData.length * 100) }}>
+                <ResponsiveContainer width="100%" height={384}>
+                  <BarChart data={processedData} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis
+                      hide
+                      domain={mode === "percent" ? [0, 100] : [0, "auto"]}
+                    />
+                    <Tooltip formatter={(val, name) => [`${val}${mode === "percent" ? "%" : ""}`, name]} />
+                    {legendItems.map((item) => (
+                      <Bar key={item.name} dataKey={`processes.${item.name}`} name={item.name} stackId="p" fill={item.color}>
+                        <LabelList
+                          dataKey={`processes.${item.name}`}
+                          position="inside"
+                          style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }}
+                          formatter={(val) => val > 0 ? `${val}${mode === "percent" ? "%" : ""}` : ""}
+                        />
+                      </Bar>
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}

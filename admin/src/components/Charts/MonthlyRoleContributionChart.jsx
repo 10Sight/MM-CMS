@@ -17,10 +17,16 @@ const LEGEND = [
   { name: "Team Leader", color: "#0ea5e9" },
 ];
 
-export default function MonthlyRoleContributionChart() {
+export default function MonthlyRoleContributionChart({
+  dashboardMetrics: metricsProp,
+  isFetching: isFetchingProp,
+  hideFilters = false,
+}) {
   const filters = useChartFilters();
-  const { data: metricsRes, isFetching } = useGetDashboardMetricsQuery(filters.queryParams);
-  const dashboardMetrics = metricsRes?.data || [];
+  const usingProps = !!metricsProp;
+  const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
+  const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
+  const isFetching = usingProps ? !!isFetchingProp : queryFetching;
   const scrollRef = useRef(null);
 
   const data = useMemo(() => {
@@ -53,7 +59,7 @@ export default function MonthlyRoleContributionChart() {
           <TrendingUp className="h-5 w-5" />
           Monthly Role Wise Audit Contribution
         </CardTitle>
-        <ChartFilters {...filters} />
+        {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-4 mb-3">
@@ -67,32 +73,46 @@ export default function MonthlyRoleContributionChart() {
         {isFetching ? (
           <ChartLoader height={300} />
         ) : (
-          <div ref={scrollRef} className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(500, data.length * 80) }}>
+          <div className="flex">
+            <div style={{ width: 65, flexShrink: 0 }}>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} unit="%" domain={[0, 100]} />
-                  <Tooltip
-                    cursor={{ fill: "rgba(0,0,0,0.05)" }}
-                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                    formatter={(value) => `${value}%`}
-                  />
-                  <Bar dataKey="Plant Head" stackId="role" fill="#eab308" barSize={35}>
-                    <LabelList dataKey="Plant Head" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
-                  </Bar>
-                  <Bar dataKey="HOD" stackId="role" fill="#f97316" barSize={35}>
-                    <LabelList dataKey="HOD" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
-                  </Bar>
-                  <Bar dataKey="Shift Incharge" stackId="role" fill="#94a3b8" barSize={35}>
-                    <LabelList dataKey="Shift Incharge" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
-                  </Bar>
-                  <Bar dataKey="Team Leader" stackId="role" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={35}>
-                    <LabelList dataKey="Team Leader" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
-                  </Bar>
+                <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="month" tick={false} axisLine={false} tickLine={false} />
+                  <YAxis width={55} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} unit="%" domain={[0, 100]} />
+                  <Bar dataKey="Plant Head" stackId="role" fill="transparent" isAnimationActive={false} barSize={35} />
+                  <Bar dataKey="HOD" stackId="role" fill="transparent" isAnimationActive={false} barSize={35} />
+                  <Bar dataKey="Shift Incharge" stackId="role" fill="transparent" isAnimationActive={false} barSize={35} />
+                  <Bar dataKey="Team Leader" stackId="role" fill="transparent" isAnimationActive={false} barSize={35} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div ref={scrollRef} className="flex-1 overflow-x-auto">
+              <div style={{ minWidth: Math.max(500, data.length * 80) }}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                    <YAxis hide domain={[0, 100]} />
+                    <Tooltip
+                      cursor={{ fill: "rgba(0,0,0,0.05)" }}
+                      contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                      formatter={(value) => `${value}%`}
+                    />
+                    <Bar dataKey="Plant Head" stackId="role" fill="#eab308" barSize={35}>
+                      <LabelList dataKey="Plant Head" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
+                    </Bar>
+                    <Bar dataKey="HOD" stackId="role" fill="#f97316" barSize={35}>
+                      <LabelList dataKey="HOD" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
+                    </Bar>
+                    <Bar dataKey="Shift Incharge" stackId="role" fill="#94a3b8" barSize={35}>
+                      <LabelList dataKey="Shift Incharge" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
+                    </Bar>
+                    <Bar dataKey="Team Leader" stackId="role" fill="#0ea5e9" radius={[4, 4, 0, 0]} barSize={35}>
+                      <LabelList dataKey="Team Leader" position="inside" style={{ fontSize: "10px", fontWeight: "500", fill: "#fff" }} formatter={(val) => val > 0 ? `${Math.round(val)}%` : ""} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}

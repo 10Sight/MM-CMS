@@ -13,6 +13,7 @@ import {
   useGetMachinesQuery,
   useUpdateAuditActionPlanMutation,
   useGetAuditFailuresQuery,
+  useGetDashboardMetricsQuery,
 } from "@/store/api";
 import { useNavigate } from "react-router-dom";
 import {
@@ -218,11 +219,25 @@ export default function SuperAdminDashboard() {
     setAudits(Array.isArray(auditData) ? auditData : []);
   }, [auditsRes]);
 
-  const totalAudits = useMemo(() => {
-    const backendTotal = auditsRes?.data?.pagination?.totalRecords;
-    if (typeof backendTotal === "number") return backendTotal;
-    return Array.isArray(audits) ? audits.length : 0;
-  }, [auditsRes, audits]);
+  // Drives the Total Audits / Audit Failures stat cards below, scoped to the same filters.
+  const { data: metricsRes } = useGetDashboardMetricsQuery({
+    unit: selectedUnit !== "all" ? selectedUnit : undefined,
+    department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    timeframe,
+  });
+  const dashboardMetrics = metricsRes?.data || [];
+
+  const totalAudits = useMemo(
+    () => dashboardMetrics.reduce((sum, m) => sum + (m.actual || 0), 0),
+    [dashboardMetrics]
+  );
+
+  const totalFailureAudits = useMemo(
+    () => dashboardMetrics.reduce((sum, m) => sum + (m.failedPoints || 0), 0),
+    [dashboardMetrics]
+  );
 
   const CHART_COLORS = {
     success: "#2563EB", // Blue for "Pass"
@@ -291,6 +306,8 @@ export default function SuperAdminDashboard() {
     const list = failuresRes?.data?.failures || [];
     return Array.isArray(list) ? list.slice(0, 10) : []; // Show top 10 on dashboard
   }, [failuresRes]);
+
+  const totalPendingFailures = failuresRes?.data?.failures?.length ?? 0;
 
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
   const [editingPoint, setEditingPoint] = useState(null); // The point currently being edited
@@ -414,8 +431,14 @@ export default function SuperAdminDashboard() {
           {
             title: "Total Audits",
             value: totalAudits,
-            description: "Lifetime",
+            description: "Selected filters",
             icon: BarChart3,
+          },
+          {
+            title: "Audit Failures",
+            value: totalFailureAudits,
+            description: "Selected filters",
+            icon: AlertTriangle,
           },
         ].map((metric) => {
           const Icon = metric.icon;
@@ -630,7 +653,7 @@ export default function SuperAdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Advanced Analytical Charts (LPA Audit Visuals) */}
+      {/* Advanced Analytical Charts (LPA Audit Visuals) — each chart uses its own independent filters */}
       <div className="grid gap-6 lg:grid-cols-2">
         <TargetVsActualChart />
         <LayerWisePlanActualChart />
@@ -662,7 +685,7 @@ export default function SuperAdminDashboard() {
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="h-fit">
-              {failureActionPoints.length} Failures Detected
+              {totalPendingFailures} Failures Detected
             </Badge>
             <Button 
               variant="outline" 

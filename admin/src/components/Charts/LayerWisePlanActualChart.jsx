@@ -11,10 +11,16 @@ const LEGEND = [
   { name: "Actual", color: "#f97316" },
 ];
 
-export default function LayerWisePlanActualChart() {
+export default function LayerWisePlanActualChart({
+  dashboardMetrics: metricsProp,
+  isFetching: isFetchingProp,
+  hideFilters = false,
+}) {
   const filters = useChartFilters();
-  const { data: metricsRes, isFetching } = useGetDashboardMetricsQuery(filters.queryParams);
-  const dashboardMetrics = metricsRes?.data || [];
+  const usingProps = !!metricsProp;
+  const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
+  const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
+  const isFetching = usingProps ? !!isFetchingProp : queryFetching;
   const scrollRef = useRef(null);
 
   const data =
@@ -40,7 +46,7 @@ export default function LayerWisePlanActualChart() {
       <CardHeader>
         <CardTitle className="text-base font-semibold">Layer wise Audit nos. of plan vs actual</CardTitle>
         <CardDescription>Performance by designation levels</CardDescription>
-        <ChartFilters {...filters} />
+        {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-4 mb-3">
@@ -54,22 +60,34 @@ export default function LayerWisePlanActualChart() {
         {isFetching ? (
           <ChartLoader height={320} />
         ) : (
-          <div ref={scrollRef} className="overflow-x-auto">
-            <div style={{ minWidth: Math.max(400, data.length * 100) }}>
+          <div className="flex">
+            <div style={{ width: 60, flexShrink: 0 }}>
               <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{ fill: "rgba(0,0,0,0.05)" }} />
-                  <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20}>
-                    <LabelList dataKey="Plan" position="top" style={{ fontSize: "10px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
-                  </Bar>
-                  <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}>
-                    <LabelList dataKey="Actual" position="top" style={{ fontSize: "10px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
-                  </Bar>
+                <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
+                  <XAxis dataKey="name" tick={false} axisLine={false} tickLine={false} />
+                  <YAxis width={50} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Bar dataKey="Plan" fill="transparent" isAnimationActive={false} barSize={20} />
+                  <Bar dataKey="Actual" fill="transparent" isAnimationActive={false} barSize={20} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div ref={scrollRef} className="flex-1 overflow-x-auto">
+              <div style={{ minWidth: Math.max(400, data.length * 100) }}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={data} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip cursor={{ fill: "rgba(0,0,0,0.05)" }} />
+                    <Bar dataKey="Plan" fill="#0369a1" radius={[4, 4, 0, 0]} barSize={20}>
+                      <LabelList dataKey="Plan" position="top" style={{ fontSize: "10px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
+                    </Bar>
+                    <Bar dataKey="Actual" fill="#f97316" radius={[4, 4, 0, 0]} barSize={20}>
+                      <LabelList dataKey="Actual" position="top" style={{ fontSize: "10px", fontWeight: "500", fill: "#64748b" }} formatter={(val) => Math.round(val)} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}
