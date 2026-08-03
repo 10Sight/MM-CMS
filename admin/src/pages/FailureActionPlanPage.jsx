@@ -111,13 +111,6 @@ export default function FailureActionPlanPage() {
     setSelectedRows({});
   }, [filters]);
 
-  // This page's table can be wider than the viewport; let the browser's own
-  // horizontal scrollbar handle it instead of a scrollbar confined to the table.
-  React.useEffect(() => {
-    document.documentElement.classList.add("allow-horizontal-scroll");
-    return () => document.documentElement.classList.remove("allow-horizontal-scroll");
-  }, []);
-
   // Stats
   const stats = useMemo(() => {
     return {
@@ -403,8 +396,8 @@ export default function FailureActionPlanPage() {
       {/* Main Table */}
       <Card>
         <CardContent className="p-0">
-          <div className="border rounded-md">
-            <Table containerClassName="overflow-x-visible">
+          <div className="border rounded-md overflow-hidden">
+            <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="w-10">
