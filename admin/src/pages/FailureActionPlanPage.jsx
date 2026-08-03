@@ -111,6 +111,13 @@ export default function FailureActionPlanPage() {
     setSelectedRows({});
   }, [filters]);
 
+  // This page's table can be wider than the viewport; let the browser's own
+  // horizontal scrollbar handle it instead of a scrollbar confined to the table.
+  React.useEffect(() => {
+    document.documentElement.classList.add("allow-horizontal-scroll");
+    return () => document.documentElement.classList.remove("allow-horizontal-scroll");
+  }, []);
+
   // Stats
   const stats = useMemo(() => {
     return {

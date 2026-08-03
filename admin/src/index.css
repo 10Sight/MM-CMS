@@ -133,6 +133,13 @@
     /* Root can grow with content; no need to hide overflow */
     min-height: 100vh;
   }
+
+  /* Opt-in override for pages that need the browser's own horizontal scrollbar
+     (e.g. a wide table) instead of the app-wide sideways-scroll guard above. */
+  html.allow-horizontal-scroll,
+  html.allow-horizontal-scroll body {
+    overflow-x: auto;
+  }
 }
 
 @layer utilities {
