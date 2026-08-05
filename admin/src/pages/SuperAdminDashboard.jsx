@@ -209,8 +209,8 @@ export default function SuperAdminDashboard() {
   const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
     unit: selectedUnit !== 'all' ? selectedUnit : undefined,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
+    line: selectedLine !== 'all' ? selectedLine : undefined,
+    machine: selectedMachine !== 'all' ? selectedMachine : undefined,
     status: 'Pending'
   });
 
@@ -309,7 +309,7 @@ export default function SuperAdminDashboard() {
     return Array.isArray(list) ? list.slice(0, 10) : []; // Show top 10 on dashboard
   }, [failuresRes]);
 
-  const totalPendingFailures = failuresRes?.data?.failures?.length ?? 0;
+  const totalPendingFailures = failuresRes?.data?.totalPending ?? failuresRes?.data?.pagination?.totalRecords ?? 0;
 
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
   const [editingPoint, setEditingPoint] = useState(null); // The point currently being edited

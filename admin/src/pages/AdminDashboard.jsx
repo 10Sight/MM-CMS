@@ -189,9 +189,9 @@ export default function AdminDashboard() {
   const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
     unit: effectiveUnitId,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
+    line: selectedLine !== 'all' ? selectedLine : undefined,
+    machine: selectedMachine !== 'all' ? selectedMachine : undefined,
     status: 'Pending',
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
   });
   const { data: linesRes } = useGetLinesQuery();
   const { data: machinesRes } = useGetMachinesQuery();
@@ -310,6 +310,8 @@ export default function AdminDashboard() {
     const list = failuresRes?.data?.failures || [];
     return Array.isArray(list) ? list.slice(0, 10) : [];
   }, [failuresRes]);
+
+  const totalPendingFailures = failuresRes?.data?.totalPending ?? failuresRes?.data?.pagination?.totalRecords ?? 0;
 
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
   const [editingPoint, setEditingPoint] = useState(null);
@@ -671,7 +673,7 @@ export default function AdminDashboard() {
             </p>
           </div>
           <Badge variant="outline">
-            {failureActionPoints.length} Failures
+            {totalPendingFailures} Pending Failures
           </Badge>
         </CardHeader>
         <CardContent>
