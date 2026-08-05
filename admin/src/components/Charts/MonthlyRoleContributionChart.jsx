@@ -9,7 +9,6 @@ import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
-import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [
   { name: "Plant Head", color: "#eab308" },
@@ -24,7 +23,6 @@ export default function MonthlyRoleContributionChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
-  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
@@ -32,12 +30,11 @@ export default function MonthlyRoleContributionChart({
   const scrollRef = useRef(null);
 
   const data = useMemo(() => {
-    const statKey = viewMode === "question" ? "totalPoints" : "actual";
     return dashboardMetrics.map((m) => {
-      const ph = m.layers?.["Plant Head"]?.[statKey] || 0;
-      const hod = m.layers?.["HOD"]?.[statKey] || 0;
-      const si = m.layers?.["Shift Incharge"]?.[statKey] || 0;
-      const tl = m.layers?.["Team Leader"]?.[statKey] || 0;
+      const ph = m.layers?.["Plant Head"]?.actual || 0;
+      const hod = m.layers?.["HOD"]?.actual || 0;
+      const si = m.layers?.["Shift Incharge"]?.actual || 0;
+      const tl = m.layers?.["Team Leader"]?.actual || 0;
       const total = ph + hod + si + tl;
       return {
         month: m.month,
@@ -47,7 +44,7 @@ export default function MonthlyRoleContributionChart({
         "Team Leader": total > 0 ? Math.round((tl / total) * 100) : 0,
       };
     });
-  }, [dashboardMetrics, viewMode]);
+  }, [dashboardMetrics]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -60,7 +57,7 @@ export default function MonthlyRoleContributionChart({
       <CardHeader>
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
-          {viewMode === "question" ? "Monthly Role Wise Question Contribution" : "Monthly Role Wise Audit Contribution"}
+          Monthly Role Wise Audit Contribution
         </CardTitle>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>

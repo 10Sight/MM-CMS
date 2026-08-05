@@ -9,8 +9,6 @@ import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
-import { computeAvgQuestionsPerAudit, computeTargetQuestions } from "@/utils/questionTargetUtils";
-import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [
   { name: "Plan", color: "#0f172a" },
@@ -23,30 +21,19 @@ export default function LayerWiseTrendChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
-  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
   const isFetching = usingProps ? !!isFetchingProp : queryFetching;
   const scrollRef = useRef(null);
 
-  const avgQuestionsPerAudit = useMemo(() => computeAvgQuestionsPerAudit(dashboardMetrics), [dashboardMetrics]);
-
   const data = useMemo(() => {
-    return ["Plant Head", "HOD", "Shift Incharge", "Team Leader"].map((layer) => {
-      const planAudits = dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.plan || 0), 0);
-      const actualAudits = dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.actual || 0), 0);
-      if (viewMode === "question") {
-        const actualQuestions = dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.totalPoints || 0), 0);
-        return {
-          name: layer,
-          Plan: computeTargetQuestions(planAudits, actualAudits, actualQuestions, avgQuestionsPerAudit),
-          Actual: actualQuestions,
-        };
-      }
-      return { name: layer, Plan: planAudits, Actual: actualAudits };
-    });
-  }, [dashboardMetrics, viewMode, avgQuestionsPerAudit]);
+    return ["Plant Head", "HOD", "Shift Incharge", "Team Leader"].map((layer) => ({
+      name: layer,
+      Plan: dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.plan || 0), 0),
+      Actual: dashboardMetrics.reduce((sum, m) => sum + (m.layers?.[layer]?.actual || 0), 0),
+    }));
+  }, [dashboardMetrics]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -59,7 +46,7 @@ export default function LayerWiseTrendChart({
       <CardHeader>
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
-          {viewMode === "question" ? "Layer wise Question nos. of plan vs actual" : "Layer wise Audit nos. of plan vs actual"}
+          Layer wise Audit nos. of plan vs actual
         </CardTitle>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>

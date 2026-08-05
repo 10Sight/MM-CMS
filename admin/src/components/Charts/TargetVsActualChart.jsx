@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useRef, useEffect } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGetDashboardMetricsQuery } from "@/store/api";
@@ -6,8 +6,6 @@ import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
 import { computeChartDelayed } from "@/utils/delayedAuditUtils";
-import { computeAvgQuestionsPerAudit, computeTargetQuestions } from "@/utils/questionTargetUtils";
-import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [
   { name: "Target",  color: "#3b82f6" },
@@ -49,7 +47,6 @@ export default function TargetVsActualChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
-  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const rawMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
@@ -57,25 +54,11 @@ export default function TargetVsActualChart({
   const timeframe = usingProps ? (timeframeProp ?? filters.timeframe) : filters.timeframe;
   const scrollRef = useRef(null);
 
-  const avgQuestionsPerAudit = useMemo(() => computeAvgQuestionsPerAudit(rawMetrics), [rawMetrics]);
-
-  // Attach computed `target`/`actual`/`delayed` per view mode to each period entry
-  const dashboardMetrics = rawMetrics.map((period) => {
-    if (viewMode === "question") {
-      const target = computeTargetQuestions(period.target, period.actual, period.totalPoints, avgQuestionsPerAudit);
-      const actual = period.totalPoints || 0;
-      return {
-        ...period,
-        target,
-        actual,
-        delayed: computeChartDelayed({ target, actual, month: period.month }, timeframe),
-      };
-    }
-    return {
-      ...period,
-      delayed: computeChartDelayed(period, timeframe),
-    };
-  });
+  // Attach computed `delayed` to each period entry
+  const dashboardMetrics = rawMetrics.map((period) => ({
+    ...period,
+    delayed: computeChartDelayed(period, timeframe),
+  }));
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -86,14 +69,8 @@ export default function TargetVsActualChart({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">
-          {viewMode === "question" ? "No of LPA Checklist Questions Target vs Actual" : "No of LPA Audit Target vs Actual"}
-        </CardTitle>
-        <CardDescription>
-          {viewMode === "question"
-            ? "Monthly comparison of target vs checked checklist questions, including delayed count"
-            : "Monthly comparison of planned vs completed audits, including delayed count"}
-        </CardDescription>
+        <CardTitle className="text-base font-semibold">No of LPA Audit Target vs Actual</CardTitle>
+        <CardDescription>Monthly comparison of planned vs completed audits, including delayed count</CardDescription>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>

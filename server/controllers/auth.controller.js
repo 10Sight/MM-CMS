@@ -205,6 +205,24 @@ export const getEmployees = asyncHandler(async (req, res) => {
     query.department = req.query.department;
   }
 
+  // Optional designation filter so admins can see auditors per designation
+  if (req.query.designation) {
+    query.designation = req.query.designation;
+  }
+
+  // Optional joining date range filter (mapped to createdAt)
+  if (req.query.startDate || req.query.endDate) {
+    query.createdAt = {};
+    if (req.query.startDate) {
+      query.createdAt.$gte = new Date(req.query.startDate);
+    }
+    if (req.query.endDate) {
+      const end = new Date(req.query.endDate);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt.$lte = end;
+    }
+  }
+
   // Add search functionality
   if (search) {
     query.$or = [

@@ -34,9 +34,7 @@ import {
   LayerWiseFailureChart,
   ProcessWiseFailuresTrendChart,
   ProcessWiseFailureTrendChart,
-  ChartViewModeToggle,
 } from "@/components/Charts";
-import { ChartViewModeProvider } from "@/context/ChartViewModeContext";
 import * as XLSX from 'xlsx';
 import { 
   useGetAuditsQuery, 
@@ -189,9 +187,9 @@ export default function AdminDashboard() {
   const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
     unit: effectiveUnitId,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    line: selectedLine !== 'all' ? selectedLine : undefined,
-    machine: selectedMachine !== 'all' ? selectedMachine : undefined,
     status: 'Pending',
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   });
   const { data: linesRes } = useGetLinesQuery();
   const { data: machinesRes } = useGetMachinesQuery();
@@ -310,8 +308,6 @@ export default function AdminDashboard() {
     const list = failuresRes?.data?.failures || [];
     return Array.isArray(list) ? list.slice(0, 10) : [];
   }, [failuresRes]);
-
-  const totalPendingFailures = failuresRes?.data?.totalPending ?? failuresRes?.data?.pagination?.totalRecords ?? 0;
 
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
   const [editingPoint, setEditingPoint] = useState(null);
@@ -644,19 +640,14 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Advanced Analytical Charts (LPA Audit Visuals) — each chart uses its own independent filters */}
-      <ChartViewModeProvider>
-        <div className="flex justify-end">
-          <ChartViewModeToggle />
-        </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <TargetVsActualChart />
-          <LayerWisePlanActualChart />
-          <FailureRateChart />
-          <LayerWiseFailureChart />
-        </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TargetVsActualChart />
+        <LayerWisePlanActualChart />
+        <FailureRateChart />
+        <LayerWiseFailureChart />
+      </div>
 
-        <ProcessWiseFailuresTrendChart />
-      </ChartViewModeProvider>
+      <ProcessWiseFailuresTrendChart />
 
       <ProcessWiseFailureTrendChart />
 
@@ -673,7 +664,7 @@ export default function AdminDashboard() {
             </p>
           </div>
           <Badge variant="outline">
-            {totalPendingFailures} Pending Failures
+            {failureActionPoints.length} Failures
           </Badge>
         </CardHeader>
         <CardContent>

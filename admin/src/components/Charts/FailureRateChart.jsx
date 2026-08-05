@@ -5,7 +5,6 @@ import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
-import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [{ name: "Failure %", color: "#0891b2" }];
 
@@ -15,19 +14,26 @@ export default function FailureRateChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
-  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isLoading: queryLoading } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
   const isLoading = usingProps ? !!isLoadingProp : queryLoading;
   const scrollRef = useRef(null);
 
+  // Same per-layer calculation as LayerWiseFailureChart: prefer each layer's average-of-per-audit
+  // failure rate from the API, falling back to the raw failed/total points ratio otherwise.
+  const layerRate = (m, role) => {
+    const layer = m.layers?.[role];
+    if (layer?.failureRate != null) return Math.round(layer.failureRate);
+    const total = m.totalPoints || 0;
+    return total > 0 ? Math.round(((layer?.failedPoints || 0) / total) * 100) : 0;
+  };
+
+  const LAYER_ROLES = ["Plant Head", "HOD", "Shift Incharge", "Team Leader"];
+
   const data = dashboardMetrics.map((m) => ({
     ...m,
-    failureRate:
-      viewMode === "question"
-        ? (m.totalPoints > 0 ? Math.round((m.failedPoints / m.totalPoints) * 100) : 0)
-        : (m.actual > 0 ? Math.round((m.failed / m.actual) * 100) : 0),
+    failureRate: LAYER_ROLES.reduce((sum, role) => sum + layerRate(m, role), 0),
   }));
 
   useEffect(() => {
@@ -40,9 +46,7 @@ export default function FailureRateChart({
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-semibold">Failure % Month wise</CardTitle>
-        <CardDescription>
-          {viewMode === "question" ? "Trend of checklist question failure rates over time" : "Trend of audit failure rates over time"}
-        </CardDescription>
+        <CardDescription>Trend of audit failure rates over time</CardDescription>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>

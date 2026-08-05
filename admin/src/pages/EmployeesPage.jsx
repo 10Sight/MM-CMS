@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -39,6 +39,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const FailureRateBadge = ({ failureRate, totalAudits }) => {
+  if (totalAudits === 0) return <span className="text-muted-foreground">-</span>;
+  return (
+    <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 border font-medium ${
+      failureRate > 20
+        ? "bg-red-50 text-red-700 border-red-200"
+        : failureRate > 10
+        ? "bg-amber-50 text-amber-700 border-amber-200"
+        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+    }`}>
+      {failureRate}%
+    </span>
+  );
+};
 
 const CircularProgress = ({ value }) => {
   const clamped = Math.max(0, Math.min(100, value || 0));
@@ -91,9 +106,15 @@ const CircularProgress = ({ value }) => {
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("all");
-  const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState(() => sessionStorage.getItem("employees_searchTerm") || "");
+  const [selectedDepartment, setSelectedDepartment] = useState(() => sessionStorage.getItem("employees_selectedDepartment") || "all");
+  const [selectedDesignation, setSelectedDesignation] = useState(() => sessionStorage.getItem("employees_selectedDesignation") || "all");
+  const [joiningStartDate, setJoiningStartDate] = useState(() => sessionStorage.getItem("employees_joiningStartDate") || "");
+  const [joiningEndDate, setJoiningEndDate] = useState(() => sessionStorage.getItem("employees_joiningEndDate") || "");
+  const [page, setPage] = useState(() => {
+    const savedPage = sessionStorage.getItem("employees_page");
+    return savedPage ? parseInt(savedPage, 10) : 1;
+  });
   const [limit] = useState(10);
   const [total, setTotal] = useState(0);
 
@@ -123,16 +144,47 @@ export default function EmployeesPage() {
   };
 
   // Debounce search term
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(() => sessionStorage.getItem("employees_searchTerm") || "");
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(searchTerm), 300);
     return () => clearTimeout(id);
   }, [searchTerm]);
 
-  // Reset to first page when search or department filter changes
+  // Persist filter and pagination state so it survives navigating away and back
   useEffect(() => {
+    sessionStorage.setItem("employees_searchTerm", searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    sessionStorage.setItem("employees_selectedDepartment", selectedDepartment);
+  }, [selectedDepartment]);
+
+  useEffect(() => {
+    sessionStorage.setItem("employees_selectedDesignation", selectedDesignation);
+  }, [selectedDesignation]);
+
+  useEffect(() => {
+    sessionStorage.setItem("employees_joiningStartDate", joiningStartDate);
+  }, [joiningStartDate]);
+
+  useEffect(() => {
+    sessionStorage.setItem("employees_joiningEndDate", joiningEndDate);
+  }, [joiningEndDate]);
+
+  useEffect(() => {
+    sessionStorage.setItem("employees_page", page.toString());
+  }, [page]);
+
+  // Reset to first page when search, department, designation, or joined date filter changes
+  // (but not on initial mount, so a restored page number isn't immediately overwritten)
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     setPage(1);
-  }, [debouncedSearch, selectedDepartment]);
+  }, [debouncedSearch, selectedDepartment, selectedDesignation, joiningStartDate, joiningEndDate]);
 
   const { data, isFetching, isLoading: queryLoading, refetch } = useGetEmployeesQuery({
     page,
@@ -140,6 +192,9 @@ export default function EmployeesPage() {
     search: debouncedSearch,
     unit: effectiveUnitId,
     department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+    designation: selectedDesignation !== "all" ? selectedDesignation : undefined,
+    startDate: joiningStartDate || undefined,
+    endDate: joiningEndDate || undefined,
   });
   const { data: deptRes } = useGetDepartmentsQuery({ page: 1, limit: 1000 });
 
@@ -234,6 +289,66 @@ export default function EmployeesPage() {
     return { hasTarget: true, targetTotal: target.total, actual, delayed };
   };
 
+  // Average of each audit's own failure rate (failed / considered answers), matching
+  // the calculation used by the FailureRateChart dashboard graph.
+  const computeFailureRate = (auditsList) => {
+    if (auditsList.length === 0) return { failureRate: 0, failedPoints: 0, totalPoints: 0, totalAudits: 0 };
+
+    let totalFailureRate = 0;
+    let failedPoints = 0;
+    let totalPoints = 0;
+
+    auditsList.forEach((a) => {
+      const answers = a.answers || [];
+      const consideredAnswers = answers.filter((ans) =>
+        ["yes", "no", "pass", "fail"].includes(ans.answer?.toLowerCase())
+      );
+      const failedAnswers = answers.filter((ans) =>
+        ["no", "fail"].includes(ans.answer?.toLowerCase())
+      );
+
+      const auditFailurePercent = consideredAnswers.length > 0
+        ? (failedAnswers.length / consideredAnswers.length) * 100
+        : 0;
+
+      totalFailureRate += auditFailurePercent;
+      failedPoints += failedAnswers.length;
+      totalPoints += consideredAnswers.length;
+    });
+
+    const averageFailureRate = Math.round(totalFailureRate / auditsList.length);
+
+    return {
+      failureRate: averageFailureRate,
+      failedPoints,
+      totalPoints,
+      totalAudits: auditsList.length
+    };
+  };
+
+  const getEmployeeAudits = (emp) =>
+    Array.isArray(audits)
+      ? audits.filter((a) => {
+          if (!a.auditor) return false;
+          const auditorId = a.auditor._id || a.auditor;
+          return String(auditorId) === String(emp._id);
+        })
+      : [];
+
+  // All-time failure rate: every audit the employee has ever submitted.
+  const getEmployeeFailureRate = (emp) => computeFailureRate(getEmployeeAudits(emp));
+
+  // Current-month failure rate: only audits dated within the current calendar month.
+  const getEmployeeCurrentMonthFailureRate = (emp) => {
+    const now = new Date();
+    const monthAudits = getEmployeeAudits(emp).filter((a) => {
+      if (!a.date) return false;
+      const d = new Date(a.date);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    });
+    return computeFailureRate(monthAudits);
+  };
+
   const handleDelete = async (emp) => {
     if (!window.confirm(`Delete ${emp.fullName}?`)) return;
     try {
@@ -250,16 +365,21 @@ export default function EmployeesPage() {
 
     const data = employees.map((emp) => {
       const { hasTarget, targetTotal, actual, delayed } = getTargetAndActual(emp);
+      const { failureRate: allTimeFailureRate, totalAudits: allTimeAudits } = getEmployeeFailureRate(emp);
+      const { failureRate: monthFailureRate, totalAudits: monthAudits } = getEmployeeCurrentMonthFailureRate(emp);
       return {
         "Full Name": emp.fullName,
         Email: emp.emailId,
         "Auditor ID": emp.employeeId,
         Department: getDepartmentName(emp.department),
+        Designation: emp.designation && emp.designation !== 'none' ? emp.designation : '-',
         Phone: emp.phoneNumber,
         Role: emp.role,
         "Target Audits": hasTarget ? targetTotal : "-",
         "Actual Audits (in target)": hasTarget ? actual : "-",
         "Delayed Audits": hasTarget ? delayed : "-",
+        "Failure Rate (All Time)": allTimeAudits > 0 ? `${allTimeFailureRate}%` : "-",
+        "Failure Rate (This Month)": monthAudits > 0 ? `${monthFailureRate}%` : "-",
         Created: new Date(emp.createdAt).toLocaleDateString(),
       };
     });
@@ -373,6 +493,40 @@ export default function EmployeesPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="w-full sm:w-56">
+                <Select
+                  value={selectedDesignation}
+                  onValueChange={(v) => setSelectedDesignation(v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Filter by designation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="plant head">Plant Head</SelectItem>
+                    <SelectItem value="hod">HOD</SelectItem>
+                    <SelectItem value="shift incharge">Shift Incharge</SelectItem>
+                    <SelectItem value="team leader">Team Leader</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2 w-full sm:w-auto">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Joined Date:</span>
+                <Input
+                  type="date"
+                  value={joiningStartDate}
+                  onChange={(e) => setJoiningStartDate(e.target.value)}
+                  className="h-9 w-full sm:w-[130px] text-xs"
+                />
+                <span className="text-xs text-muted-foreground">–</span>
+                <Input
+                  type="date"
+                  value={joiningEndDate}
+                  onChange={(e) => setJoiningEndDate(e.target.value)}
+                  className="h-9 w-full sm:w-[130px] text-xs"
+                />
+              </div>
             </div>
           </div>
 
@@ -388,6 +542,8 @@ export default function EmployeesPage() {
                   <TableHead className="hidden lg:table-cell text-center">Actual (in target)</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Delayed</TableHead>
                   <TableHead className="hidden lg:table-cell text-center">Progress</TableHead>
+                  <TableHead className="hidden lg:table-cell text-center">Failure Rate (All Time)</TableHead>
+                  <TableHead className="hidden lg:table-cell text-center">Failure Rate (This Month)</TableHead>
                   <TableHead className="hidden md:table-cell">Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -399,6 +555,8 @@ export default function EmployeesPage() {
                     const progressPercent = hasTarget && targetTotal > 0
                       ? Math.round((actual / targetTotal) * 100)
                       : 0;
+                    const { failureRate: allTimeFailureRate, totalAudits: allTimeAudits } = getEmployeeFailureRate(emp);
+                    const { failureRate: monthFailureRate, totalAudits: monthAudits } = getEmployeeCurrentMonthFailureRate(emp);
                     return (
                       <TableRow
                         key={emp._id}
@@ -468,6 +626,12 @@ export default function EmployeesPage() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
+                        <TableCell className="hidden lg:table-cell text-center text-xs">
+                          <FailureRateBadge failureRate={allTimeFailureRate} totalAudits={allTimeAudits} />
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell text-center text-xs">
+                          <FailureRateBadge failureRate={monthFailureRate} totalAudits={monthAudits} />
+                        </TableCell>
                         <TableCell className="hidden md:table-cell text-muted-foreground">
                           {new Date(emp.createdAt).toLocaleDateString()}
                         </TableCell>
@@ -503,7 +667,7 @@ export default function EmployeesPage() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={11} className="h-24 text-center">
                       {searchTerm ? (
                         <div className="flex flex-col items-center justify-center">
                           <Search className="h-8 w-8 text-muted-foreground mb-2" />

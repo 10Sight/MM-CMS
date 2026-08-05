@@ -68,9 +68,7 @@ import {
   ProcessWiseFailureTrendChart,
   LayerWiseTrendChart,
   MonthlyRoleContributionChart,
-  ChartViewModeToggle,
 } from "@/components/Charts";
-import { ChartViewModeProvider } from "@/context/ChartViewModeContext";
 import { format, startOfMonth, startOfWeek, startOfYear } from "date-fns";
 
 const designations = [
@@ -209,8 +207,8 @@ export default function SuperAdminDashboard() {
   const { data: failuresRes, refetch: refetchFailures } = useGetAuditFailuresQuery({
     unit: selectedUnit !== 'all' ? selectedUnit : undefined,
     department: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    line: selectedLine !== 'all' ? selectedLine : undefined,
-    machine: selectedMachine !== 'all' ? selectedMachine : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
     status: 'Pending'
   });
 
@@ -309,7 +307,7 @@ export default function SuperAdminDashboard() {
     return Array.isArray(list) ? list.slice(0, 10) : []; // Show top 10 on dashboard
   }, [failuresRes]);
 
-  const totalPendingFailures = failuresRes?.data?.totalPending ?? failuresRes?.data?.pagination?.totalRecords ?? 0;
+  const totalPendingFailures = failuresRes?.data?.failures?.length ?? 0;
 
   const [updateActionPlan] = useUpdateAuditActionPlanMutation();
   const [editingPoint, setEditingPoint] = useState(null); // The point currently being edited
@@ -656,25 +654,20 @@ export default function SuperAdminDashboard() {
       </Card>
 
       {/* Advanced Analytical Charts (LPA Audit Visuals) — each chart uses its own independent filters */}
-      <ChartViewModeProvider>
-        <div className="flex justify-end">
-          <ChartViewModeToggle />
-        </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <TargetVsActualChart />
-          <LayerWisePlanActualChart />
-          <FailureRateChart />
-          <LayerWiseFailureChart />
-        </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TargetVsActualChart />
+        <LayerWisePlanActualChart />
+        <FailureRateChart />
+        <LayerWiseFailureChart />
+      </div>
 
-        <ProcessWiseFailuresTrendChart />
+      <ProcessWiseFailuresTrendChart />
 
-        {/* Charts */}
-        <div className="grid gap-6 lg:grid-cols-2">
-          <LayerWiseTrendChart />
-          <MonthlyRoleContributionChart />
-        </div>
-      </ChartViewModeProvider>
+      {/* Charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <LayerWiseTrendChart />
+        <MonthlyRoleContributionChart />
+      </div>
 
       <ProcessWiseFailureTrendChart />
 

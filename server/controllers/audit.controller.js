@@ -1261,6 +1261,31 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
               }
             }
           }
+        },
+        // Points that count toward pass/fail scoring, i.e. excluding "NA" / non yes-no-pass-fail answers
+        auditConsideredPoints: {
+          $size: {
+            $filter: {
+              input: "$answers",
+              as: "ans",
+              cond: {
+                $in: [{ $toLower: "$$ans.answer" }, ["yes", "no", "pass", "fail"]]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        // Per-audit failure percentage, used to compute the monthly average failure rate
+        // (average of each audit's failure %, not the raw ratio of failed points to total points)
+        auditFailurePercent: {
+          $cond: [
+            { $gt: ["$auditConsideredPoints", 0] },
+            { $round: [{ $multiply: [{ $divide: ["$auditFailedPoints", "$auditConsideredPoints"] }, 100] }, 0] },
+            0
+          ]
         }
       }
     },
@@ -1279,6 +1304,7 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
         },
         totalPoints: { $sum: "$auditTotalPoints" },
         failedPoints: { $sum: "$auditFailedPoints" },
+        failureRateSum: { $sum: "$auditFailurePercent" },
         // Group by designation for layer stats
         plantHeadActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, 1, 0] } },
         hodActual: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, 1, 0] } },
@@ -1287,17 +1313,16 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
         // NEW: Layer point counts
         plantHeadTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, "$auditTotalPoints", 0] } },
         plantHeadFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, "$auditFailedPoints", 0] } },
+        plantHeadFailureRateSum: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, "$auditFailurePercent", 0] } },
         hodTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, "$auditTotalPoints", 0] } },
         hodFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, "$auditFailedPoints", 0] } },
+        hodFailureRateSum: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, "$auditFailurePercent", 0] } },
         shiftInchargeTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, "$auditTotalPoints", 0] } },
         shiftInchargeFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, "$auditFailedPoints", 0] } },
+        shiftInchargeFailureRateSum: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, "$auditFailurePercent", 0] } },
         teamLeaderTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditTotalPoints", 0] } },
         teamLeaderFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditFailedPoints", 0] } },
-        // Layer-level failed *audit* counts (an audit counts once if it has any failed point)
-        plantHeadFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } },
-        hodFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } },
-        shiftInchargeFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } },
-        teamLeaderFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } }
+        teamLeaderFailureRateSum: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditFailurePercent", 0] } }
       }
     }
   ]);
@@ -1374,11 +1399,13 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       failed: 0,
       totalPoints: 0,
       failedPoints: 0,
+      failureRateSum: 0,
+      failureRate: 0,
       layers: {
-        "Plant Head": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 },
-        "HOD": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 },
-        "Shift Incharge": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 },
-        "Team Leader": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 }
+        "Plant Head": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failureRateSum: 0, failureRate: 0 },
+        "HOD": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failureRateSum: 0, failureRate: 0 },
+        "Shift Incharge": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failureRateSum: 0, failureRate: 0 },
+        "Team Leader": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failureRateSum: 0, failureRate: 0 }
       },
       processes: {},
       categoryTotals: {}
@@ -1410,26 +1437,32 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       periodData[pKey].failed = stat.failed;
       periodData[pKey].totalPoints = stat.totalPoints;
       periodData[pKey].failedPoints = stat.failedPoints;
+      periodData[pKey].failureRateSum = stat.failureRateSum;
+      periodData[pKey].failureRate = stat.actual > 0 ? stat.failureRateSum / stat.actual : 0;
 
       periodData[pKey].layers["Plant Head"].actual = stat.plantHeadActual;
       periodData[pKey].layers["Plant Head"].totalPoints = stat.plantHeadTotalPoints;
       periodData[pKey].layers["Plant Head"].failedPoints = stat.plantHeadFailedPoints;
-      periodData[pKey].layers["Plant Head"].failedAudits = stat.plantHeadFailedAudits;
+      periodData[pKey].layers["Plant Head"].failureRateSum = stat.plantHeadFailureRateSum;
+      periodData[pKey].layers["Plant Head"].failureRate = stat.plantHeadActual > 0 ? stat.plantHeadFailureRateSum / stat.plantHeadActual : 0;
 
       periodData[pKey].layers["HOD"].actual = stat.hodActual;
       periodData[pKey].layers["HOD"].totalPoints = stat.hodTotalPoints;
       periodData[pKey].layers["HOD"].failedPoints = stat.hodFailedPoints;
-      periodData[pKey].layers["HOD"].failedAudits = stat.hodFailedAudits;
+      periodData[pKey].layers["HOD"].failureRateSum = stat.hodFailureRateSum;
+      periodData[pKey].layers["HOD"].failureRate = stat.hodActual > 0 ? stat.hodFailureRateSum / stat.hodActual : 0;
 
       periodData[pKey].layers["Shift Incharge"].actual = stat.shiftInchargeActual;
       periodData[pKey].layers["Shift Incharge"].totalPoints = stat.shiftInchargeTotalPoints;
       periodData[pKey].layers["Shift Incharge"].failedPoints = stat.shiftInchargeFailedPoints;
-      periodData[pKey].layers["Shift Incharge"].failedAudits = stat.shiftInchargeFailedAudits;
+      periodData[pKey].layers["Shift Incharge"].failureRateSum = stat.shiftInchargeFailureRateSum;
+      periodData[pKey].layers["Shift Incharge"].failureRate = stat.shiftInchargeActual > 0 ? stat.shiftInchargeFailureRateSum / stat.shiftInchargeActual : 0;
 
       periodData[pKey].layers["Team Leader"].actual = stat.teamLeaderActual;
       periodData[pKey].layers["Team Leader"].totalPoints = stat.teamLeaderTotalPoints;
       periodData[pKey].layers["Team Leader"].failedPoints = stat.teamLeaderFailedPoints;
-      periodData[pKey].layers["Team Leader"].failedAudits = stat.teamLeaderFailedAudits;
+      periodData[pKey].layers["Team Leader"].failureRateSum = stat.teamLeaderFailureRateSum;
+      periodData[pKey].layers["Team Leader"].failureRate = stat.teamLeaderActual > 0 ? stat.teamLeaderFailureRateSum / stat.teamLeaderActual : 0;
     }
   });
 

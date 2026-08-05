@@ -62,7 +62,7 @@ export const api = createApi({
 
     // Employees
     getEmployees: builder.query({
-      query: ({ page = 1, limit = 20, search = '', unit, department } = {}) => ({
+      query: ({ page = 1, limit = 20, search = '', unit, department, designation, startDate, endDate } = {}) => ({
         url: '/api/v1/auth/get-employee',
         params: {
           page,
@@ -70,6 +70,9 @@ export const api = createApi({
           search,
           ...(unit ? { unit } : {}),
           ...(department ? { department } : {}),
+          ...(designation ? { designation } : {}),
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {}),
         },
       }),
       providesTags: (result) =>

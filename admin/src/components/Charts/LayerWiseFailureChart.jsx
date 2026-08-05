@@ -5,7 +5,6 @@ import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
-import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [
   { name: "Plant Head", color: "#eab308" },
@@ -20,24 +19,28 @@ export default function LayerWiseFailureChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
-  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
   const isFetching = usingProps ? !!isFetchingProp : queryFetching;
   const scrollRef = useRef(null);
 
-  const data = dashboardMetrics.map((m) => {
-    const total = viewMode === "question" ? (m.totalPoints || 0) : (m.actual || 0);
-    const statKey = viewMode === "question" ? "failedPoints" : "failedAudits";
-    return {
-      month: m.month,
-      "Plant Head": total > 0 ? Math.round((m.layers?.["Plant Head"]?.[statKey] / total) * 100) : 0,
-      "HOD": total > 0 ? Math.round((m.layers?.["HOD"]?.[statKey] / total) * 100) : 0,
-      "Shift Incharge": total > 0 ? Math.round((m.layers?.["Shift Incharge"]?.[statKey] / total) * 100) : 0,
-      "Team Leader": total > 0 ? Math.round((m.layers?.["Team Leader"]?.[statKey] / total) * 100) : 0,
-    };
-  });
+  // Prefer each layer's average-of-per-audit failure rate from the API; fall back to the
+  // raw failed/total points ratio (against the month's total points) for older backend responses.
+  const layerRate = (m, role) => {
+    const layer = m.layers?.[role];
+    if (layer?.failureRate != null) return Math.round(layer.failureRate);
+    const total = m.totalPoints || 0;
+    return total > 0 ? Math.round(((layer?.failedPoints || 0) / total) * 100) : 0;
+  };
+
+  const data = dashboardMetrics.map((m) => ({
+    month: m.month,
+    "Plant Head": layerRate(m, "Plant Head"),
+    "HOD": layerRate(m, "HOD"),
+    "Shift Incharge": layerRate(m, "Shift Incharge"),
+    "Team Leader": layerRate(m, "Team Leader"),
+  }));
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -49,9 +52,7 @@ export default function LayerWiseFailureChart({
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-semibold">Layer-wise Failure Distribution</CardTitle>
-        <CardDescription>
-          {viewMode === "question" ? "Monthly failed checklist questions stacked by designation" : "Monthly failed audits stacked by designation"}
-        </CardDescription>
+        <CardDescription>Monthly failures stacked by designation</CardDescription>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>
