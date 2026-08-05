@@ -1,5 +1,5 @@
 import Audit from "../models/audit.model.js";
-import AuditEmailSetting from "../models/auditEmailSetting.model.js";
+import AuditEmailSetting, { FAILURE_DESIGNATIONS } from "../models/auditEmailSetting.model.js";
 import AuditFormSetting from "../models/auditFormSetting.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -26,6 +26,244 @@ const normalizeEmailList = (raw) => {
 const AUDIT_EMAIL_LOGO_URL = EVN.CLIENT_URL
   ? `${EVN.CLIENT_URL.replace(/\/+$/, "")}/motherson+marelli.png`
   : null;
+
+// ===== Automatic Failure Alert Emails =====
+
+const FAILURE_VALUES = ["No", "Fail"];
+
+// Same grouping key as getAuditFailures ("machine-or-process-or-line - question"),
+// so the automatic escalation trigger matches what the Failures dashboard calls "repeated".
+const buildFailureKey = (audit, questionId) => {
+  const mId =
+    audit.machine?._id?.toString?.() || audit.machine?.toString?.() ||
+    audit.process?._id?.toString?.() || audit.process?.toString?.() ||
+    audit.line?._id?.toString?.() || audit.line?.toString?.() ||
+    "unknown";
+  return { mId, key: `${mId}-${questionId}` };
+};
+
+// Live count of prior failing audits for the same machine/process/line + question.
+// repeatCount includes the current audit; isRepeated mirrors getAuditFailures' `>1` rule.
+const computeRepeatInfo = async (mId, questionId, currentAuditId) => {
+  if (!mId || mId === "unknown") return { isRepeated: false, repeatCount: 1 };
+  const priorCount = await Audit.countDocuments({
+    _id: { $ne: currentAuditId },
+    $or: [{ machine: mId }, { process: mId }, { line: mId }],
+    answers: {
+      $elemMatch: {
+        question: questionId,
+        answer: { $in: FAILURE_VALUES },
+      },
+    },
+  });
+  return { isRepeated: priorCount > 0, repeatCount: priorCount + 1 };
+};
+
+// Resolve recipients for a failing question, scoped to the audit's department/unit.
+// Precedence: department override (replaces designation routing) -> designation match
+// -> global fallback "to" (only if nothing matched); global fallback "cc" always appended.
+const resolveFailureRecipients = async ({ failureRouting, departmentId, unitId }) => {
+  let to = [];
+  let cc = [];
+
+  const deptOverride = departmentId && Array.isArray(failureRouting?.departmentRecipients)
+    ? failureRouting.departmentRecipients.find((cfg) => {
+        const cfgDeptId = cfg.department?._id?.toString?.() || cfg.department?.toString?.();
+        return cfgDeptId === departmentId;
+      })
+    : null;
+
+  if (deptOverride?.to && deptOverride.to.trim()) {
+    to = deptOverride.to.split(",").map((e) => e.trim()).filter(Boolean);
+    cc = (deptOverride.cc || "").split(",").map((e) => e.trim()).filter(Boolean);
+  } else if (Array.isArray(failureRouting?.designations) && failureRouting.designations.length) {
+    const orConds = [];
+    if (failureRouting.designations.includes("plant head") && unitId) {
+      orConds.push({ designation: "plant head", unit: unitId });
+    }
+    const deptScopedDesignations = failureRouting.designations.filter((d) => d !== "plant head");
+    if (deptScopedDesignations.length && departmentId) {
+      orConds.push({ designation: { $in: deptScopedDesignations }, department: departmentId });
+    }
+    if (orConds.length) {
+      const matched = await Employee.find({ $or: orConds }).select("emailId").lean();
+      to = [...new Set(matched.map((e) => e.emailId).filter(Boolean))];
+    }
+  }
+
+  if (!to.length && failureRouting?.to && failureRouting.to.trim()) {
+    to = failureRouting.to.split(",").map((e) => e.trim()).filter(Boolean);
+  }
+  if (failureRouting?.cc && failureRouting.cc.trim()) {
+    cc = [...cc, ...failureRouting.cc.split(",").map((e) => e.trim()).filter(Boolean)];
+  }
+
+  to = [...new Set(to)];
+  cc = [...new Set(cc)];
+  if (!to.length) return null;
+  return { to: to.join(", "), cc: cc.length ? cc.join(", ") : undefined };
+};
+
+// Shared renderer for both the standard and escalated failure-alert emails.
+// No photos are embedded/linked here - recipients follow the dashboard CTA for detail/photos.
+const renderFailureAlertHtml = ({
+  escalated,
+  repeatCount,
+  dateStr,
+  lineName,
+  machineName,
+  departmentName,
+  unitName,
+  auditorName,
+  questionText,
+  answer,
+  remark,
+}) => {
+  const logoImgHtml = AUDIT_EMAIL_LOGO_URL
+    ? `<img src="${AUDIT_EMAIL_LOGO_URL}" alt="Company Logo" style="max-width:220px;height:auto;margin-bottom:12px;" />`
+    : "";
+
+  const bannerHtml = escalated
+    ? `<div style="margin:0 24px 16px 24px;padding:12px 16px;border-radius:8px;background-color:#fee2e2;border:1px solid #fca5a5;color:#991b1b;font-size:13px;font-weight:600;">
+        This question has failed ${repeatCount} times on this machine/line. Immediate systemic investigation is recommended.
+      </div>`
+    : "";
+
+  return `
+    <div style="background-color:#f3f4f6;padding:24px 16px;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111827;">
+      <div style="max-width:640px;margin:0 auto;background-color:#ffffff;border-radius:12px;border:1px solid ${escalated ? "#b91c1c" : "#e5e7eb"};overflow:hidden;box-shadow:0 10px 25px rgba(15,23,42,0.08);">
+        <div style="padding:20px 24px;text-align:center;background-color:${escalated ? "#b91c1c" : "#dc2626"};color:#ffffff;">
+          ${logoImgHtml}
+          <h2 style="margin:0;font-size:20px;line-height:1.4;">${escalated ? "Repeated Failure Escalation" : "Audit Failure Alert"}</h2>
+        </div>
+
+        ${bannerHtml}
+
+        <div style="padding:8px 24px 20px 24px;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;color:#111827;">
+            <tbody>
+              <tr><td style="padding:4px 8px;width:35%;color:#6b7280;">Date</td><td style="padding:4px 8px;font-weight:500;">${dateStr}</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280;">Department</td><td style="padding:4px 8px;font-weight:500;">${departmentName}</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280;">Unit</td><td style="padding:4px 8px;font-weight:500;">${unitName}</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280;">Line</td><td style="padding:4px 8px;font-weight:500;">${lineName}</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280;">Machine</td><td style="padding:4px 8px;font-weight:500;">${machineName}</td></tr>
+              <tr><td style="padding:4px 8px;color:#6b7280;">Auditor</td><td style="padding:4px 8px;font-weight:500;">${auditorName}</td></tr>
+              ${escalated ? `<tr><td style="padding:4px 8px;color:#6b7280;">Repeat count</td><td style="padding:4px 8px;font-weight:600;color:#b91c1c;">${repeatCount} times failed</td></tr>` : ""}
+            </tbody>
+          </table>
+
+          <div style="margin-top:16px;padding:16px;border-radius:8px;background-color:${escalated ? "#fff5f5" : "#fef2f2"};border:1px solid ${escalated ? "#fecaca" : "#fee2e2"};">
+            <p style="margin:0 0 6px 0;font-size:13px;"><strong>Question:</strong> ${questionText}</p>
+            <p style="margin:0 0 6px 0;font-size:13px;"><strong>Answer:</strong> ${answer}</p>
+            <p style="margin:0;font-size:13px;color:#b91c1c;"><strong>Remark:</strong> ${remark || "-"}</p>
+          </div>
+        </div>
+
+        <div style="padding:16px 24px;text-align:center;border-top:1px solid #e5e7eb;background-color:#f9fafb;">
+          <a href="${EVN.CLIENT_URL}" style="display:inline-block;padding:12px 32px;background-color:${escalated ? "#b91c1c" : "#2563eb"};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">
+            View in Dashboard
+          </a>
+        </div>
+      </div>
+
+      <p style="margin-top:12px;font-size:11px;color:#9ca3af;text-align:center;">
+        Developed by Sarvagaya Institute.
+      </p>
+    </div>
+  `;
+};
+
+const buildFailureAlertHtml = (data) => renderFailureAlertHtml({ ...data, escalated: false });
+const buildRepeatedFailureAlertHtml = (data) => renderFailureAlertHtml({ ...data, escalated: true });
+
+// Fire-and-forget: emails the configured recipients for each failing answer on a newly
+// created audit, escalating to the repeated-failure template when applicable.
+const sendFailureAlerts = async (populatedAudit) => {
+  const failingAnswers = (populatedAudit.answers || []).filter((ans) =>
+    FAILURE_VALUES.includes((ans.answer || "").toString())
+  );
+  if (!failingAnswers.length) return;
+
+  const emailSetting = await AuditEmailSetting.findOne()
+    .sort({ createdAt: -1 })
+    .populate("failureRouting.departmentRecipients.department", "name")
+    .lean();
+
+  const failureRouting = emailSetting?.failureRouting;
+  const hasAnyRouting =
+    failureRouting &&
+    ((failureRouting.designations && failureRouting.designations.length) ||
+      (failureRouting.departmentRecipients && failureRouting.departmentRecipients.length) ||
+      (failureRouting.to && failureRouting.to.trim()));
+  if (!hasAnyRouting) {
+    logger.info(`No failure routing configured; skipping failure alerts for audit ${populatedAudit._id}`);
+    return;
+  }
+
+  const departmentId = populatedAudit.department?._id?.toString?.() || populatedAudit.department?.toString?.();
+  const unitId = populatedAudit.unit?._id?.toString?.() || populatedAudit.unit?.toString?.();
+  const dateStr = populatedAudit.date ? new Date(populatedAudit.date).toISOString().split("T")[0] : "N/A";
+  const lineName = populatedAudit.line?.name || "N/A";
+  const machineName = populatedAudit.machine?.name || populatedAudit.process?.name || "N/A";
+  const departmentName = populatedAudit.department?.name || "N/A";
+  const unitName = populatedAudit.unit?.name || "N/A";
+  const auditorName = populatedAudit.auditor?.fullName || "N/A";
+
+  let sentCount = 0;
+
+  for (const ans of failingAnswers) {
+    const questionId = ans.question?._id?.toString?.() || ans.question?.toString?.();
+    if (!questionId) continue;
+
+    const { mId, key } = buildFailureKey(populatedAudit, questionId);
+    let isRepeated = false;
+    let repeatCount = 1;
+    try {
+      ({ isRepeated, repeatCount } = await computeRepeatInfo(mId, questionId, populatedAudit._id));
+    } catch (err) {
+      logger.error(`Failed to compute repeat info for failure key ${key}: ${err?.message || err}`);
+    }
+
+    let recipients = null;
+    try {
+      recipients = await resolveFailureRecipients({ failureRouting, departmentId, unitId });
+    } catch (err) {
+      logger.error(`Failed to resolve failure recipients for audit ${populatedAudit._id}: ${err?.message || err}`);
+      continue;
+    }
+    if (!recipients) {
+      logger.info(`No failure-alert recipients resolved for audit ${populatedAudit._id} / question ${questionId}`);
+      continue;
+    }
+
+    const questionText = ans.question?.questionText || "N/A";
+    const templateData = {
+      repeatCount,
+      dateStr,
+      lineName,
+      machineName,
+      departmentName,
+      unitName,
+      auditorName,
+      questionText,
+      answer: ans.answer,
+      remark: ans.remark,
+    };
+    const html = isRepeated ? buildRepeatedFailureAlertHtml(templateData) : buildFailureAlertHtml(templateData);
+    const subject = `${isRepeated ? "[Repeated Failure] " : ""}Audit Failure Alert - ${lineName} - ${questionText}`;
+
+    try {
+      await sendMail(recipients.to, subject, html, recipients.cc);
+      sentCount += 1;
+    } catch (err) {
+      logger.error(`Failed to send failure alert for audit ${populatedAudit._id} / question ${questionId}: ${err?.message || err}`);
+    }
+  }
+
+  if (sentCount) {
+    logger.info(`Sent ${sentCount} failure alert(s) for audit ${populatedAudit._id}`);
+  }
+};
 
 // Shared date-range matcher for all audit list/aggregation endpoints.
 // Matches audits whose logical `date` OR creation timestamp `createdAt` falls in range,
@@ -153,6 +391,7 @@ export const createAudit = asyncHandler(async (req, res) => {
       if (needsRemark && !ans.remark) {
         throw new ApiError(400, `Remark required for question ${ans.question}`);
       }
+      ans.actionStatus = (val === "No" || val === "Fail") ? "Pending" : "N/A";
       // Attach photos if available (optional for all statuses)
       if (photosByQuestion[ans.question]) {
         ans.photos = photosByQuestion[ans.question];
@@ -166,6 +405,7 @@ export const createAudit = asyncHandler(async (req, res) => {
       if (needsRemark && !ans.remark) {
         throw new ApiError(400, `Remark required for question ${ans.question}`);
       }
+      ans.actionStatus = (val === "No" || val === "Fail") ? "Pending" : "N/A";
     });
   }
 
@@ -197,7 +437,9 @@ export const createAudit = asyncHandler(async (req, res) => {
     .populate('machine', 'name')
     .populate('process', 'name')
     .populate('unit', 'name')
-    .populate('auditor', 'fullName');
+    .populate('department', 'name')
+    .populate('auditor', 'fullName')
+    .populate('answers.question', 'questionText');
 
   const lineName = populatedAudit?.line?.name || line;
   const machineName = populatedAudit?.machine?.name || machine;
@@ -219,6 +461,11 @@ export const createAudit = asyncHandler(async (req, res) => {
       message: `Audit created for Line: ${lineName} Employee: ${auditorName}`,
     });
   }
+
+  // Fire-and-forget: does not block the audit-submit response
+  sendFailureAlerts(populatedAudit).catch((err) =>
+    logger.error(`Failed to process failure alerts for audit ${audit._id}: ${err?.message || err}`)
+  );
 
   logger.info(`Audit created by ${req.user.id}`);
   return res.status(201).json(new ApiResponse(201, audit, "Audit submitted"));
@@ -900,13 +1147,14 @@ export const getAuditEmailSettings = asyncHandler(async (req, res) => {
   const setting = await AuditEmailSetting.findOne()
     .sort({ createdAt: -1 })
     .populate("departmentRecipients.department", "name")
+    .populate("failureRouting.departmentRecipients.department", "name")
     .lean();
 
   return res.json(new ApiResponse(200, setting, "Audit email settings fetched"));
 });
 
 export const updateAuditEmailSettings = asyncHandler(async (req, res) => {
-  const { to, cc, departmentRecipients } = req.body || {};
+  const { to, cc, departmentRecipients, failureRouting } = req.body || {};
 
   if (!to || !to.trim()) {
     throw new ApiError(400, "Primary recipient email(s) are required");
@@ -926,12 +1174,35 @@ export const updateAuditEmailSettings = asyncHandler(async (req, res) => {
       }));
   }
 
+  const normalizedFailureRouting = {
+    designations: Array.isArray(failureRouting?.designations)
+      ? failureRouting.designations.filter((d) => FAILURE_DESIGNATIONS.includes(d))
+      : [],
+    departmentRecipients: Array.isArray(failureRouting?.departmentRecipients)
+      ? failureRouting.departmentRecipients
+          .filter((item) => item && item.department)
+          .map((item) => ({
+            department: item.department,
+            to: normalizeEmailList(item.to),
+            cc: normalizeEmailList(item.cc),
+          }))
+      : [],
+    to: normalizeEmailList(failureRouting?.to),
+    cc: normalizeEmailList(failureRouting?.cc),
+  };
+
   const setting = await AuditEmailSetting.findOneAndUpdate(
     {},
-    { to: normalizedTo, cc: normalizedCc, departmentRecipients: normalizedDepartmentRecipients },
+    {
+      to: normalizedTo,
+      cc: normalizedCc,
+      departmentRecipients: normalizedDepartmentRecipients,
+      failureRouting: normalizedFailureRouting,
+    },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   )
     .populate("departmentRecipients.department", "name")
+    .populate("failureRouting.departmentRecipients.department", "name")
     .lean();
 
   return res.json(new ApiResponse(200, setting, "Audit email settings updated"));
@@ -1626,7 +1897,7 @@ export const getAuditFailures = asyncHandler(async (req, res) => {
           actionPlan: ans.actionPlan,
           actionOwner: ans.actionOwner,
           actionDeadline: ans.actionDeadline,
-          actionStatus: ans.actionStatus || "Pending",
+          actionStatus: (!ans.actionStatus || ans.actionStatus === "N/A") ? "Pending" : ans.actionStatus,
           rootCause: ans.rootCause,
           systemicRootCause: ans.systemicRootCause,
           systemImprovement: ans.systemImprovement,
