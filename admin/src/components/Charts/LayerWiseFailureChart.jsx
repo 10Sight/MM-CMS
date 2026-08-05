@@ -5,6 +5,7 @@ import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
+import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [
   { name: "Plant Head", color: "#eab308" },
@@ -19,6 +20,7 @@ export default function LayerWiseFailureChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
+  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
@@ -26,13 +28,14 @@ export default function LayerWiseFailureChart({
   const scrollRef = useRef(null);
 
   const data = dashboardMetrics.map((m) => {
-    const total = m.totalPoints || 0;
+    const total = viewMode === "question" ? (m.totalPoints || 0) : (m.actual || 0);
+    const statKey = viewMode === "question" ? "failedPoints" : "failedAudits";
     return {
       month: m.month,
-      "Plant Head": total > 0 ? Math.round((m.layers?.["Plant Head"]?.failedPoints / total) * 100) : 0,
-      "HOD": total > 0 ? Math.round((m.layers?.["HOD"]?.failedPoints / total) * 100) : 0,
-      "Shift Incharge": total > 0 ? Math.round((m.layers?.["Shift Incharge"]?.failedPoints / total) * 100) : 0,
-      "Team Leader": total > 0 ? Math.round((m.layers?.["Team Leader"]?.failedPoints / total) * 100) : 0,
+      "Plant Head": total > 0 ? Math.round((m.layers?.["Plant Head"]?.[statKey] / total) * 100) : 0,
+      "HOD": total > 0 ? Math.round((m.layers?.["HOD"]?.[statKey] / total) * 100) : 0,
+      "Shift Incharge": total > 0 ? Math.round((m.layers?.["Shift Incharge"]?.[statKey] / total) * 100) : 0,
+      "Team Leader": total > 0 ? Math.round((m.layers?.["Team Leader"]?.[statKey] / total) * 100) : 0,
     };
   });
 
@@ -46,7 +49,9 @@ export default function LayerWiseFailureChart({
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-semibold">Layer-wise Failure Distribution</CardTitle>
-        <CardDescription>Monthly failures stacked by designation</CardDescription>
+        <CardDescription>
+          {viewMode === "question" ? "Monthly failed checklist questions stacked by designation" : "Monthly failed audits stacked by designation"}
+        </CardDescription>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>

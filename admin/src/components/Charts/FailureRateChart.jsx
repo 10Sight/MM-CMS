@@ -5,6 +5,7 @@ import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
+import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [{ name: "Failure %", color: "#0891b2" }];
 
@@ -14,6 +15,7 @@ export default function FailureRateChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
+  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isLoading: queryLoading } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
@@ -22,7 +24,10 @@ export default function FailureRateChart({
 
   const data = dashboardMetrics.map((m) => ({
     ...m,
-    failureRate: m.totalPoints > 0 ? Math.round((m.failedPoints / m.totalPoints) * 100) : 0,
+    failureRate:
+      viewMode === "question"
+        ? (m.totalPoints > 0 ? Math.round((m.failedPoints / m.totalPoints) * 100) : 0)
+        : (m.actual > 0 ? Math.round((m.failed / m.actual) * 100) : 0),
   }));
 
   useEffect(() => {
@@ -35,7 +40,9 @@ export default function FailureRateChart({
     <Card>
       <CardHeader>
         <CardTitle className="text-base font-semibold">Failure % Month wise</CardTitle>
-        <CardDescription>Trend of audit failure rates over time</CardDescription>
+        <CardDescription>
+          {viewMode === "question" ? "Trend of checklist question failure rates over time" : "Trend of audit failure rates over time"}
+        </CardDescription>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>
       <CardContent>

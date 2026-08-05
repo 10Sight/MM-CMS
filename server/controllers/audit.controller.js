@@ -1292,7 +1292,12 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
         shiftInchargeTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, "$auditTotalPoints", 0] } },
         shiftInchargeFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, "$auditFailedPoints", 0] } },
         teamLeaderTotalPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditTotalPoints", 0] } },
-        teamLeaderFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditFailedPoints", 0] } }
+        teamLeaderFailedPoints: { $sum: { $cond: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, "$auditFailedPoints", 0] } },
+        // Layer-level failed *audit* counts (an audit counts once if it has any failed point)
+        plantHeadFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "plant head"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } },
+        hodFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "hod"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } },
+        shiftInchargeFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "shift incharge"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } },
+        teamLeaderFailedAudits: { $sum: { $cond: [{ $and: [{ $eq: [{ $toLower: "$auditorData.designation" }, "team leader"] }, { $gt: ["$auditFailedPoints", 0] }] }, 1, 0] } }
       }
     }
   ]);
@@ -1370,10 +1375,10 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       totalPoints: 0,
       failedPoints: 0,
       layers: {
-        "Plant Head": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 },
-        "HOD": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 },
-        "Shift Incharge": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 },
-        "Team Leader": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0 }
+        "Plant Head": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 },
+        "HOD": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 },
+        "Shift Incharge": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 },
+        "Team Leader": { plan: 0, actual: 0, totalPoints: 0, failedPoints: 0, failedAudits: 0 }
       },
       processes: {},
       categoryTotals: {}
@@ -1409,18 +1414,22 @@ export const getDashboardMetrics = asyncHandler(async (req, res) => {
       periodData[pKey].layers["Plant Head"].actual = stat.plantHeadActual;
       periodData[pKey].layers["Plant Head"].totalPoints = stat.plantHeadTotalPoints;
       periodData[pKey].layers["Plant Head"].failedPoints = stat.plantHeadFailedPoints;
+      periodData[pKey].layers["Plant Head"].failedAudits = stat.plantHeadFailedAudits;
 
       periodData[pKey].layers["HOD"].actual = stat.hodActual;
       periodData[pKey].layers["HOD"].totalPoints = stat.hodTotalPoints;
       periodData[pKey].layers["HOD"].failedPoints = stat.hodFailedPoints;
+      periodData[pKey].layers["HOD"].failedAudits = stat.hodFailedAudits;
 
       periodData[pKey].layers["Shift Incharge"].actual = stat.shiftInchargeActual;
       periodData[pKey].layers["Shift Incharge"].totalPoints = stat.shiftInchargeTotalPoints;
       periodData[pKey].layers["Shift Incharge"].failedPoints = stat.shiftInchargeFailedPoints;
+      periodData[pKey].layers["Shift Incharge"].failedAudits = stat.shiftInchargeFailedAudits;
 
       periodData[pKey].layers["Team Leader"].actual = stat.teamLeaderActual;
       periodData[pKey].layers["Team Leader"].totalPoints = stat.teamLeaderTotalPoints;
       periodData[pKey].layers["Team Leader"].failedPoints = stat.teamLeaderFailedPoints;
+      periodData[pKey].layers["Team Leader"].failedAudits = stat.teamLeaderFailedAudits;
     }
   });
 

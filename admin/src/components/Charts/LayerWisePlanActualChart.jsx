@@ -1,10 +1,12 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGetDashboardMetricsQuery } from "@/store/api";
 import { useChartFilters } from "@/hooks/useChartFilters";
 import ChartFilters from "./ChartFilters";
 import ChartLoader from "./ChartLoader";
+import { computeAvgQuestionsPerAudit, computeTargetQuestions } from "@/utils/questionTargetUtils";
+import { useChartViewMode } from "@/context/ChartViewModeContext";
 
 const LEGEND = [
   { name: "Plan", color: "#0369a1" },
@@ -17,20 +19,31 @@ export default function LayerWisePlanActualChart({
   hideFilters = false,
 }) {
   const filters = useChartFilters();
+  const { viewMode } = useChartViewMode();
   const usingProps = !!metricsProp;
   const { data: metricsRes, isFetching: queryFetching } = useGetDashboardMetricsQuery(filters.queryParams, { skip: usingProps });
   const dashboardMetrics = usingProps ? metricsProp : (metricsRes?.data || []);
   const isFetching = usingProps ? !!isFetchingProp : queryFetching;
   const scrollRef = useRef(null);
 
+  const avgQuestionsPerAudit = useMemo(() => computeAvgQuestionsPerAudit(dashboardMetrics), [dashboardMetrics]);
+
   const data =
     dashboardMetrics.length > 0
       ? ["Plant Head", "HOD", "Shift Incharge", "Team Leader"].map((layer) => {
           const latest = dashboardMetrics[dashboardMetrics.length - 1];
+          const layerStats = latest?.layers?.[layer] || {};
+          if (viewMode === "question") {
+            return {
+              name: layer,
+              Plan: computeTargetQuestions(layerStats.plan || 0, layerStats.actual || 0, layerStats.totalPoints || 0, avgQuestionsPerAudit),
+              Actual: layerStats.totalPoints || 0,
+            };
+          }
           return {
             name: layer,
-            Plan: latest?.layers?.[layer]?.plan || 0,
-            Actual: latest?.layers?.[layer]?.actual || 0,
+            Plan: layerStats.plan || 0,
+            Actual: layerStats.actual || 0,
           };
         })
       : [];
@@ -44,7 +57,9 @@ export default function LayerWisePlanActualChart({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Layer wise Audit nos. of plan vs actual</CardTitle>
+        <CardTitle className="text-base font-semibold">
+          {viewMode === "question" ? "Layer wise Question nos. of plan vs actual" : "Layer wise Audit nos. of plan vs actual"}
+        </CardTitle>
         <CardDescription>Performance by designation levels</CardDescription>
         {!hideFilters && <ChartFilters {...filters} />}
       </CardHeader>

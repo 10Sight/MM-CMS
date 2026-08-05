@@ -8,3 +8,4 @@ export { default as LayerWiseTrendChart } from "./LayerWiseTrendChart";
 export { default as MonthlyRoleContributionChart } from "./MonthlyRoleContributionChart";
 export { default as ChartFilters } from "./ChartFilters";
 export { default as ChartLoader } from "./ChartLoader";
+export { default as ChartViewModeToggle } from "./ChartViewModeToggle";

@@ -34,7 +34,9 @@ import {
   LayerWiseFailureChart,
   ProcessWiseFailuresTrendChart,
   ProcessWiseFailureTrendChart,
+  ChartViewModeToggle,
 } from "@/components/Charts";
+import { ChartViewModeProvider } from "@/context/ChartViewModeContext";
 import * as XLSX from 'xlsx';
 import { 
   useGetAuditsQuery, 
@@ -640,14 +642,19 @@ export default function AdminDashboard() {
       </Card>
 
       {/* Advanced Analytical Charts (LPA Audit Visuals) — each chart uses its own independent filters */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TargetVsActualChart />
-        <LayerWisePlanActualChart />
-        <FailureRateChart />
-        <LayerWiseFailureChart />
-      </div>
+      <ChartViewModeProvider>
+        <div className="flex justify-end">
+          <ChartViewModeToggle />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <TargetVsActualChart />
+          <LayerWisePlanActualChart />
+          <FailureRateChart />
+          <LayerWiseFailureChart />
+        </div>
 
-      <ProcessWiseFailuresTrendChart />
+        <ProcessWiseFailuresTrendChart />
+      </ChartViewModeProvider>
 
       <ProcessWiseFailureTrendChart />
 
