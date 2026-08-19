@@ -14,7 +14,7 @@ import {
   Users,
   Target
 } from "lucide-react";
-import { useDeleteEmployeeByIdMutation, useGetDepartmentsQuery, useGetEmployeesQuery, useGetAuditsQuery, useGetUnitsQuery } from "@/store/api";
+import { useDeleteEmployeeByIdMutation, useGetDepartmentsQuery, useGetEmployeesQuery, useLazyGetEmployeesQuery, useGetAuditsQuery, useGetUnitsQuery } from "@/store/api";
 import { computeWindowDelayed } from "@/utils/delayedAuditUtils";
 import Loader from "@/components/ui/Loader";
 import { useAuth } from "../context/AuthContext";
@@ -197,6 +197,7 @@ export default function EmployeesPage() {
     endDate: joiningEndDate || undefined,
   });
   const { data: deptRes } = useGetDepartmentsQuery({ page: 1, limit: 1000 });
+  const [triggerGetEmployees, { isFetching: isExporting }] = useLazyGetEmployeesQuery();
 
   // Fetch audits for this unit to compute "actual" counts per employee.
   // Use polling so that when auditors submit new audits (possibly from other devices),
@@ -360,10 +361,27 @@ export default function EmployeesPage() {
     }
   };
 
-  const downloadExcel = () => {
-    if (!employees.length) return;
+  const downloadExcel = async () => {
+    let allEmployees;
+    try {
+      const result = await triggerGetEmployees({
+        limit: "all",
+        search: debouncedSearch,
+        unit: effectiveUnitId,
+        department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+        designation: selectedDesignation !== "all" ? selectedDesignation : undefined,
+        startDate: joiningStartDate || undefined,
+        endDate: joiningEndDate || undefined,
+      }).unwrap();
+      allEmployees = result?.data?.employees || [];
+    } catch (err) {
+      alert(err?.data?.message || err?.message || "Failed to export auditors");
+      return;
+    }
 
-    const data = employees.map((emp) => {
+    if (!allEmployees.length) return;
+
+    const data = allEmployees.map((emp) => {
       const { hasTarget, targetTotal, actual, delayed } = getTargetAndActual(emp);
       const { failureRate: allTimeFailureRate, totalAudits: allTimeAudits } = getEmployeeFailureRate(emp);
       const { failureRate: monthFailureRate, totalAudits: monthAudits } = getEmployeeCurrentMonthFailureRate(emp);
@@ -389,7 +407,7 @@ export default function EmployeesPage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Auditors");
     const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, `auditors_page_${page}.xlsx`);
+    saveAs(blob, "auditors.xlsx");
   };
 
   if (loading)
@@ -407,9 +425,9 @@ export default function EmployeesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={downloadExcel} variant="outline" size="sm">
+          <Button onClick={downloadExcel} variant="outline" size="sm" disabled={isExporting}>
             <Download className="mr-2 h-4 w-4" />
-            Export
+            {isExporting ? "Exporting..." : "Export"}
           </Button>
           <Button onClick={() => navigate("/admin/add-employee")} size="sm">
             <Plus className="mr-2 h-4 w-4" />

@@ -186,8 +186,9 @@ export const logoutEmployee = asyncHandler(async (_req, res) => {
 
 export const getEmployees = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 20;
-  const skip = (page - 1) * limit;
+  const isUnpaginated = req.query.limit === 'all';
+  const limit = isUnpaginated ? null : (parseInt(req.query.limit) || 20);
+  const skip = isUnpaginated ? 0 : (page - 1) * limit;
   const search = req.query.search || '';
 
   // Build query - only get employees with role 'employee'
@@ -236,23 +237,29 @@ export const getEmployees = asyncHandler(async (req, res) => {
   const total = await Employee.countDocuments(query);
   let employees;
   try {
-    employees = await Employee.find(query)
+    let findQuery = Employee.find(query)
       .select("-password")
       .populate('department', 'name description')
       .populate('unit', 'name description')
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 })
-      .lean();
+      .sort({ createdAt: -1 });
+
+    if (!isUnpaginated) {
+      findQuery = findQuery.skip(skip).limit(limit);
+    }
+
+    employees = await findQuery.lean();
   } catch (err) {
     if (err?.name === 'CastError') {
       // Fallback without populate for legacy records where department is a string
-      employees = await Employee.find(query)
+      let findQuery = Employee.find(query)
         .select("-password")
-        .skip(skip)
-        .limit(limit)
-        .sort({ createdAt: -1 })
-        .lean();
+        .sort({ createdAt: -1 });
+
+      if (!isUnpaginated) {
+        findQuery = findQuery.skip(skip).limit(limit);
+      }
+
+      employees = await findQuery.lean();
     } else {
       throw err;
     }
@@ -261,7 +268,7 @@ export const getEmployees = asyncHandler(async (req, res) => {
   logger.info(`Employees fetched by ${req.user.fullName} (${req.user.employeeId})`);
   return res
     .status(200)
-    .json(new ApiResponse(200, { employees, total, page, limit }, "Employees fetched successfully"));
+    .json(new ApiResponse(200, { employees, total, page, limit: limit || 'all' }, "Employees fetched successfully"));
 });
 
 export const getSingleEmployee = asyncHandler(async (req, res) => {
