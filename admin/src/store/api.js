@@ -390,6 +390,7 @@ export const {
   useInitiateMobileLoginMutation,
   useVerifyMobileLoginOtpMutation,
   useGetEmployeesQuery,
+  useLazyGetEmployeesQuery,
   useGetAllUsersQuery,
   useGetLinesQuery,
   useCreateLineMutation,
